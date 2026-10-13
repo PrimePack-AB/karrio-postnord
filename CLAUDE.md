@@ -2,6 +2,7 @@
 
 ## Commands
 - Full suite (offline, from repo root only — another directory can resolve a different checkout's provider code first): `.venv/bin/python -m unittest discover -f -s tests` (repair: `.venv/bin/pip install -r requirements-dev.txt && .venv/bin/pip install -e .`)
+- Environment note: a shell profiled from the karrio monorepo exports PYTHONPATH containing every fork connector, so `pip show karrio-postnord` can report a phantom 2026.6 from the fork's on-disk egg-info; harmless — imports and the suite resolve to this repo (verified with and without PYTHONPATH). Use `env -u PYTHONPATH .venv/bin/pip ...` when pip metadata must be trusted
 - Single module, discover form with a pattern: `.venv/bin/python -m unittest discover -v -f -s tests -p "test_<module>.py"`. The dotted form `python -m unittest tests.postnord.test_rate` does NOT work here: `tests/__init__.py` imports top-level `postnord.*`, which resolves only when discovery runs from `tests`
 - Pyright: `.venv/bin/pyright` from repo root — informational only, see baseline below
 - Regenerate `karrio/schemas/postnord` after editing `schemas/*.json`: `ROOT=../karrio ./generate` (the generator rides the karrio monorepo checkout's `bin/cli`; never edit generated modules by hand)
