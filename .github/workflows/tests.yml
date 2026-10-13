@@ -8,8 +8,9 @@ on:
 
 env:
   # Fork SDK floor (fork-only stamping PluginMetadata fields): the public
-  # Joaqim/karrio ref the connector is tested against. Bump on release.
-  FORK_REF: 65468d813
+  # Joaqim/karrio ref the connector is tested against, as a full sha —
+  # actions/checkout fetches the ref verbatim and short shas fail. Bump on release.
+  FORK_REF: 65468d8136f1a454237c748d73d1b59924b3e62b
 
 permissions:
   contents: read
