@@ -12,6 +12,7 @@ This package is a PostNord extension of the [karrio](https://pypi.org/project/ka
 pip install git+https://github.com/PrimePack-AB/karrio-postnord.git
 ```
 
+The `karrio` dependency must resolve to the fork SDK — upstream karrio cannot import this plugin; see [Fork SDK floor](#fork-sdk-floor) below.
 The package registers through the `karrio.plugins` entry point group under the id `postnord`, so installing it makes the carrier available to every karrio SDK runtime, and uninstalling it removes the carrier.
 A Karrio server builds its reference models at boot, so restart the API after installing or upgrading the plugin; `GET /v1/references` then lists the carrier.
 A server deployment can also expose the package through the `KARRIO_PLUGINS` directory mount instead of installing it.

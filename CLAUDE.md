@@ -15,7 +15,8 @@
 - 1064 errors as of 2026-10-13, pre-existing and inherited from the fork tree (dominated by the generated schemas); CI runs the unittest suite only. Cleanup is a separate task — do not gate feature work on it, and do not add new errors
 
 ## Evidence and redaction rules
-- Credential VALUES never appear in notes, docs, commits, or output: no `POSTNORD_LIVE_*`, apikey, or customer-number values anywhere (env variable NAMES in prose are fine). Repo-root `.env` holds live keys and is gitignored; never print it
+- Credential VALUES never appear in notes, docs, commits, or output: no `POSTNORD_LIVE_*` or apikey values anywhere (env variable NAMES in prose are fine). Repo-root `.env` holds live keys and is gitignored; never print it
+- Carve-outs inherited from the seed, accepted at extraction (2026-10-13 review): the live customer number inside the byte-identical `.zpl` label fixtures, the live application id in test files (declared only, never sent — `karrio/providers/postnord/utils.py`), and live-verification artifact ids (printId, bookingId) in docs/notes/sandbox/ are not credentials and stay; the 32-char apikeys are absent from every tracked file
 - Captures and probe artifacts are referenced by path or sha only, never embedded
 - The sandbox/live evidence suite is deferred: no committed evidence fixtures yet, so published docs pages (anything outside docs/notes/) make no sandbox/live claims — they rest on the API specs and the README. When the suite lands, probes must be env-gated (opt-in env var, like the DHL repo's `DHL_FREIGHT_SWEDEN_SANDBOX` pattern), and every sandbox claim in published docs must cite a committed redacted fixture
 - PostNord has no cancel endpoint: test bookings and pickups stay booked; probe deliberately, never retry a rejected step
