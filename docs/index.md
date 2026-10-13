@@ -46,3 +46,4 @@ The development pages are for working on the connector itself: setup, tests, and
 
 - [Development](development/index.md)
 - [Plugin layout](development/architecture/plugin-layout.md)
+- [Documentation site](development/architecture/docs-site.md)
