@@ -1,0 +1,1108 @@
+"""Karrio PostNord shipment (Booking EDI) API implementation.
+
+Booking and label retrieval happen in one call against
+``/rest/shipment/v3/edi/labels/pdf`` or ``/labels/zpl`` (selected by the
+resolved label type). The request body is an ``ediInstruction``
+(``ShipmentRequestType``) with ``updateIndicator`` ``"Original"``; the
+response is an ``ediLabelResponse`` carrying a ``bookingResponse`` (ids,
+tracking urls, per-item errors) and one or more ``labelPrintout`` entries.
+PDF printouts carry base64 data; ZPL printouts carry raw UTF-8 ZPL text
+with ``printout.encoding`` set to ``"none"`` (observed on the live
+endpoint; the swagger documents base64 only).
+
+Parcel-product bookings that embed a customs invoice, and
+declaration-structured bookings (the letters' CN22, International Parcel's
+CN23) that embed a declaration with the
+``postnord_standalone_customs_documents`` opt-in (shipment options, falling
+back to the connection config), additionally fetch the standalone customs
+document PostNord composed, keyed by the booking's printId, falling back
+to the item id when no printId was allocated (``POST
+/v3/labels/ids/{pdf,zpl}`` with ``definePrintout=onlyCustomsDeclarations``,
+issued by the proxy after the booking) and attach it under
+``docs.extra_documents``.
+
+For CN22-structured services with customs data, PostNord composes the CN22
+into the booking printout in both formats, which is returned unchanged as
+``docs.label``. The parser verifies that composition with the SDK customs
+classifier and PostNord's ``DOCUMENT_SECTIONS``; a mismatch is a
+``POSTNORD_UNEXPECTED_LABEL_COMPOSITION`` warning, never a booking failure.
+CN23-structured bookings are not held to that composition: whether PostNord
+composes the CN23 into the label is a pending live verification, so their
+documents pass through unstamped rather than being measured against the
+CN22 seeds.
+"""
+
+import base64
+import uuid
+import datetime
+import karrio.schemas.postnord.shipment_request as postnord_req
+import karrio.schemas.postnord.shipment_response as postnord_res
+
+import typing
+import karrio.lib as lib
+import karrio.core.units as units
+import karrio.core.models as models
+import karrio.providers.postnord.error as error
+import karrio.providers.postnord.utils as provider_utils
+import karrio.providers.postnord.units as provider_units
+import karrio.providers.postnord.stamping as provider_stamping
+
+
+def parse_shipment_response(
+    _response: lib.Deserializable[dict],
+    settings: provider_utils.Settings,
+) -> typing.Tuple[models.ShipmentDetails, typing.List[models.Message]]:
+    response = _response.deserialize()
+    messages = error.parse_error_response(response, settings)
+
+    booking = response.get("bookingResponse") or {}
+    # A booking succeeds per-item: any item allocated ids (item/shipment id)
+    # yields a usable label and tracking number. Inline per-item faults are
+    # surfaced as messages alongside the details, so the presence of messages
+    # must not suppress a partially-successful booking.
+    informations = booking.get("idInformation") or []
+    has_shipment = any(info.get("ids") for info in informations)
+    shipment = (
+        _extract_details(response, settings, _response.ctx)
+        if has_shipment
+        else None
+    )
+
+    # The implicit by-id customs fetch is fail-open (see proxy.create_shipment):
+    # its failure arrives as an error body on the ctx and surfaces here as
+    # messages without suppressing the booking result.
+    if _response.ctx.get("customs_printout_error"):
+        messages += error.parse_error_response(
+            _response.ctx["customs_printout_error"], settings
+        )
+
+    if _response.ctx.get("customs_omitted"):
+        messages.append(
+            _customs_omitted_message(_response.ctx["customs_omitted"], settings)
+        )
+
+    composition_message = lib.identity(
+        _label_composition_message(shipment, settings)
+        if shipment is not None and _expects_combined_label(_response.ctx)
+        else None
+    )
+    if composition_message is not None:
+        messages.append(composition_message)
+
+    return shipment, messages
+
+
+def _expects_combined_label(ctx: dict) -> bool:
+    """Whether PostNord composes a CN22 into this booking's label."""
+    return bool(ctx.get("customs_declared")) and (
+        provider_units.customs_structure(ctx.get("basic_service_code"))
+        == provider_units.CustomsStructure.cn22
+    )
+
+
+def _label_composition_message(
+    shipment: models.ShipmentDetails,
+    settings: provider_utils.Settings,
+) -> typing.Optional[models.Message]:
+    """Verify the booking label is the shipping label composed with a CN22.
+
+    The label is classified with PostNord's declared document sections; any
+    other composition, or a booking returning no label data, yields a warning
+    and leaves the label unchanged, since the booking is already made.
+    """
+    expected = lib.CustomsComposition.label_with_declaration
+    classification = None
+    if not shipment.docs.label:
+        finding = "no label data was returned"
+    else:
+        try:
+            classification = lib.classify_customs_composition(
+                models.ShippingDocument(
+                    category="label",
+                    format=shipment.label_type,
+                    base64=shipment.docs.label,
+                ),
+                sections=provider_stamping.DOCUMENT_SECTIONS,
+            )
+            finding = f"was classified as {classification.composition.value}"
+        except ValueError as classification_error:
+            finding = f"could not be classified: {classification_error}"
+
+    if classification is not None and classification.composition == expected:
+        return None
+
+    return models.Message(
+        carrier_name=settings.carrier_name,
+        carrier_id=settings.carrier_id,
+        code=provider_units.POSTNORD_UNEXPECTED_LABEL_COMPOSITION,
+        level="warning",
+        message=(
+            "The label was expected to be the shipping label composed with a "
+            f"CN22 ({expected.value}) but {finding}"
+        ),
+    )
+
+
+def _customs_omitted_message(
+    countries: dict,
+    settings: provider_utils.Settings,
+) -> models.Message:
+    return models.Message(
+        carrier_name=settings.carrier_name,
+        carrier_id=settings.carrier_id,
+        code=provider_units.CUSTOMS_OMITTED_INTRA_EU,
+        level="warning",
+        message=(
+            "Customs data was not sent: the shipment from "
+            f"{countries['shipper_country_code']} to "
+            f"{countries['recipient_country_code']} stays within the EU VAT area"
+        ),
+    )
+
+
+def _extract_details(
+    data: dict,
+    settings: provider_utils.Settings,
+    ctx: dict = None,
+) -> models.ShipmentDetails:
+    ctx = ctx or {}
+    response = lib.to_object(postnord_res.ShipmentResponseType, data)
+    booking = response.bookingResponse
+    informations = booking.idInformation or []
+
+    ids = _assigned_ids(booking)
+    urls = [url for info in informations for url in (info.urls or [])]
+
+    tracking_numbers = list(
+        dict.fromkeys(_id.value for _id in ids if _id.idType == "itemId" and _id.value)
+    )
+    tracking_number = _first_item_id(booking)
+    shipment_identifier = lib.identity(
+        ctx.get("shipment_id")
+        or next((_id.value for _id in ids if _id.idType == "shipmentId"), None)
+        or booking.bookingId
+        or tracking_number
+    )
+    tracking_url = next(
+        (url.url for url in urls if (url.type or "").upper() == "TRACKING"), None
+    )
+    # The booking id stays out of shipment_identifiers: neither cancel nor
+    # pickup sends it.
+    shipment_identifiers = list(
+        dict.fromkeys(
+            [
+                shipment_identifier,
+                *(_id.value for _id in ids if _id.idType == "shipmentId" and _id.value),
+            ]
+        )
+    )
+
+    printouts = response.labelPrintout or []
+    label_format = next(
+        (
+            p.printout.labelFormat
+            for p in printouts
+            if p.printout and p.printout.labelFormat
+        ),
+        # ZPL responses have been observed without labelFormat; fall back to
+        # the requested type rather than assuming PDF.
+        ctx.get("label_type", "PDF"),
+    )
+    label_data = [
+        _printout_base64(p.printout)
+        for p in printouts
+        if p.printout and p.printout.data
+    ]
+    label = lib.identity(
+        label_data[0]
+        if len(label_data) == 1
+        else lib.bundle_base64(label_data, label_format) if label_data else None
+    )
+
+    composed_kinds = sorted({kind for p in printouts for kind in _composed_kinds(p)})
+    customs_documents = _customs_documents(
+        ctx.get("customs_printouts") or [],
+        label_format,
+    )
+
+    return models.ShipmentDetails(
+        carrier_id=settings.carrier_id,
+        carrier_name=settings.carrier_name,
+        tracking_number=tracking_number,
+        shipment_identifier=shipment_identifier,
+        label_type=label_format,
+        docs=models.Documents(
+            label=label,
+            **({"extra_documents": customs_documents} if customs_documents else {}),
+        ),
+        meta=dict(
+            # PostNord's booking reference, distinct from the tracking and
+            # shipment ids above; meta is where the response exposes it.
+            booking_id=booking.bookingId,
+            carrier_tracking_link=tracking_url,
+            tracking_numbers=tracking_numbers,
+            shipment_identifiers=shipment_identifiers,
+            **({"printout_composition": composed_kinds} if composed_kinds else {}),
+        ),
+    )
+
+
+def _assigned_ids(
+    booking: typing.Optional[postnord_res.BookingResponseType],
+) -> typing.List[postnord_res.IDType]:
+    """Flatten the booking's ``idInformation`` entries into their assigned ids.
+
+    One shared traversal for every id consumer (shipment identifier, item
+    id, printId), so an ``idInformation`` layout change lands in one place.
+    """
+    if booking is None:
+        return []
+
+    return [
+        _id for info in (booking.idInformation or []) for _id in (info.ids or [])
+    ]
+
+
+def _first_item_id(
+    booking: typing.Optional[postnord_res.BookingResponseType],
+) -> typing.Optional[str]:
+    """Return the booking's first assigned item id.
+
+    One rule shared by the parser (the tracking number) and the proxy (the
+    fallback id for the by-id customs document fetch), so both resolve the
+    same id even if the idInformation layout changes.
+    """
+    return next(
+        (_id.value for _id in _assigned_ids(booking) if _id.idType == "itemId"),
+        None,
+    )
+
+
+def _first_print_id(
+    booking: typing.Optional[postnord_res.BookingResponseType],
+) -> typing.Optional[str]:
+    """Return the printId accompanying the booking's first assigned item id.
+
+    ``/v3/labels/ids`` resolves a booking's printable artifacts by the
+    ``assignedIds`` printId, not the item id (live 2026-09-21: the same
+    booking fails ``id not found`` keyed by item id and succeeds keyed by
+    printId), so the implicit customs fetch keys its request here.
+    """
+    return next(
+        (_id.printId for _id in _assigned_ids(booking) if _id.idType == "itemId"),
+        None,
+    )
+
+
+def _composed_kinds(printout: postnord_res.LabelPrintoutType) -> typing.List[str]:
+    """Return the document kinds PostNord composed into a label printout."""
+    return [
+        kind for kind, count in (printout.printoutComposition or {}).items() if count
+    ]
+
+
+def _customs_documents(
+    printouts: typing.List[dict],
+    fallback_format: str,
+) -> typing.List[models.ShippingDocument]:
+    """Map by-id customs printout entries onto unified shipping documents.
+
+    The entries are ``labelPrintout`` arrays: the implicit
+    ``POST /v3/labels/ids/{pdf,zpl}`` fetch threaded through the ctx by
+    ``proxy.create_shipment``, and the customs-declaration pdf
+    endpoint's response. The category is what PostNord's
+    ``printoutComposition`` says was composed — never assumed from the
+    service — falling back to the standardized customs-declaration category
+    when PostNord sends no composition. ZPL data re-encodes through the same
+    raw-UTF-8 path as the booking label.
+    """
+    entries = [
+        lib.to_object(postnord_res.LabelPrintoutType, entry)
+        for entry in printouts
+        if isinstance(entry, dict)
+    ]
+
+    return [
+        models.ShippingDocument(
+            category=(
+                ",".join(sorted(_composed_kinds(entry)))
+                or units.ShippingDocumentCategory.customs_declaration.name
+            ),
+            format=entry.printout.labelFormat or fallback_format,
+            base64=_printout_base64(entry.printout),
+        )
+        for entry in entries
+        if entry.printout and entry.printout.data
+    ]
+
+
+def _printout_base64(printout: postnord_res.PrintoutType) -> str:
+    """Return the printout data as base64 regardless of transport encoding.
+
+    The swagger documents only ``encoding`` ``"base64"``, so an absent
+    encoding defaults to base64 passthrough. ZPL printouts carry raw UTF-8
+    ZPL text with ``encoding`` ``"none"`` (observed on the live endpoint,
+    undocumented); any non-base64 encoding is treated as raw text and
+    encoded here. The downstream bundling helpers expect base64 inputs.
+    """
+    if (printout.encoding or "base64").lower() == "base64":
+        return printout.data
+
+    return base64.b64encode(printout.data.encode("utf-8")).decode("utf-8")
+
+
+def _line_weight(commodity: models.Commodity) -> typing.Optional[float]:
+    """Return a commodity line's weight in KG: per-unit weight times quantity.
+
+    Unified commodity weight is per unit, while PostNord's declaration lines
+    and totals are per line.
+    """
+    return units.Weight(
+        lib.identity(
+            commodity.weight * (commodity.quantity or 1)
+            if commodity.weight
+            else None
+        ),
+        commodity.weight_unit,
+    ).KG
+
+
+def _line_value(commodity: models.Commodity) -> typing.Optional[float]:
+    """Return a commodity line's value: per-unit value times quantity."""
+    return lib.identity(
+        lib.to_money(commodity.value_amount * (commodity.quantity or 1))
+        if commodity.value_amount
+        else None
+    )
+
+
+def _total_weight(commodities: typing.List[models.Commodity]) -> typing.Optional[float]:
+    return lib.to_decimal(sum(_line_weight(c) or 0 for c in commodities), 0.001) or None
+
+
+def _total_gross_weight(
+    parcel_weight: typing.Optional[float],
+    commodities: typing.List[models.Commodity],
+) -> typing.Optional[float]:
+    """Return the declaration's total gross weight in KG.
+
+    Parcel weights include packaging, so their sum is the gross weight; the
+    commodity line weights stand in only when no parcel weight is given.
+    """
+    return lib.to_decimal(parcel_weight, 0.001) or _total_weight(commodities)
+
+
+def _total_value(
+    commodities: typing.List[models.Commodity],
+) -> typing.Optional[postnord_req.GoodsValueType]:
+    """Sum the line values in the currency of the first line that sets one."""
+    currency = next((c.value_currency for c in commodities if c.value_currency), None)
+
+    return lib.identity(
+        postnord_req.GoodsValueType(
+            amount=lib.to_money(sum(_line_value(c) or 0 for c in commodities)),
+            currency=currency,
+        )
+        if any(c.value_amount for c in commodities)
+        else None
+    )
+
+
+def _customs_line(
+    index: int, commodity: models.Commodity
+) -> postnord_req.CustomsDeclarationCN22DetailedDescriptionType:
+    """Map one unified commodity onto a CN22 detailedDescription row.
+
+    Underivable elements are omitted rather than emitted as empty or
+    partial structs: a commodity without ``weight_unit`` has no KGM value
+    (``Commodity.weight_unit`` has no default, unlike ``Parcel``'s), and a
+    line without ``value_amount`` carries no value; the swagger marks both
+    elements optional on ``detailedDescription``. Value and weight are line
+    totals over the quantity.
+    """
+    weight = _line_weight(commodity)
+
+    return postnord_req.CustomsDeclarationCN22DetailedDescriptionType(
+        content=commodity.title or commodity.description,
+        quantity=lib.identity(
+            postnord_req.NumberOfPackagesType(value=commodity.quantity)
+            if commodity.quantity
+            else None
+        ),
+        grossWeight=lib.identity(
+            postnord_req.TotalGrossWeightType(value=weight, unit="KGM")
+            if weight
+            else None
+        ),
+        value=lib.identity(
+            postnord_req.GoodsValueType(
+                amount=_line_value(commodity),
+                currency=commodity.value_currency,
+            )
+            if commodity.value_amount
+            else None
+        ),
+        hsTariffNumber=commodity.hs_code,
+        countryCode=commodity.origin_country,
+        rowNo=index + 1,
+    )
+
+
+def _declaration_registration(
+    options: units.CustomsOptions,
+    shipper: units.ComputedAddress,
+) -> typing.Dict[str, typing.Optional[str]]:
+    """Resolve the declaration registration trio shared by CN22 and CN23.
+
+    Per-request passthrough from ``customs.options`` converted with the
+    provider ``CustomsOption`` enum, with the EORI falling back to the
+    shipper's ``state_tax_id`` (``resolve_eori_number``).
+    """
+    return dict(
+        EORIorPersonalIdNumber=provider_units.resolve_eori_number(options, shipper),
+        voec=options.voec_number.state or None,
+        ioss=options.ioss_number.state or None,
+    )
+
+
+def _customs_declaration(
+    customs: models.Customs,
+    options: units.CustomsOptions,
+    parcel_weight: typing.Optional[float],
+    shipper: units.ComputedAddress,
+) -> postnord_req.CustomsDeclarationCN22Type:
+    """Map unified customs data onto the booking's CN22 declaration branch.
+
+    CN22 is the letter declaration branch whose required fields
+    (``detailedDescription``, ``totalValue``) are fully derivable from the
+    unified customs model; ``content_type`` resolves to the sole
+    ``categoryType`` entry through the provider CN22 vocabulary
+    (``CN22CategoryType.lookup``), with unknown values passing through
+    verbatim. A declaration with no registration number and no address
+    fallback is rejected locally, matching PostNord's SACUS-BR-24062502.
+    """
+    provider_units.enforce_customs_declaration_lines(
+        len(customs.commodities), field="customs.commodities"
+    )
+    provider_units.enforce_declaration_registration_numbers(options, shipper)
+    provider_units.enforce_customs_line_content(customs.commodities)
+
+    total_gross_weight = _total_gross_weight(parcel_weight, customs.commodities)
+    category = (
+        provider_units.CN22CategoryType.lookup(customs.content_type)
+        if customs.content_type
+        else None
+    )
+
+    return postnord_req.CustomsDeclarationCN22Type(
+        **_declaration_registration(options, shipper),
+        countryOfOrigin=shipper.country_code,
+        categoryOfItem=lib.identity(
+            postnord_req.CategoryOfItemType(categoryType=[category])
+            if category
+            else None
+        ),
+        detailedDescription=[
+            _customs_line(index, commodity)
+            for index, commodity in enumerate(customs.commodities)
+        ],
+        totalGrossWeight=lib.identity(
+            postnord_req.TotalGrossWeightType(value=total_gross_weight, unit="KGM")
+            if total_gross_weight
+            else None
+        ),
+        totalValue=_total_value(customs.commodities),
+    )
+
+
+def _customs_declaration_cn23(
+    customs: models.Customs,
+    options: units.CustomsOptions,
+    parcel_weight: typing.Optional[float],
+    shipper: units.ComputedAddress,
+) -> postnord_req.CustomsDeclarationCN23Type:
+    """Map unified customs data onto the booking's CN23 declaration branch.
+
+    CN23 is the parcel-post declaration branch (International Parcel), built
+    from the same row mapping, totals, category resolution, and registration
+    handling as the CN22 minus CN22-only ``countryOfOrigin``. The swagger
+    additionally marks ``postalCharges`` required; the unified model carries
+    no postal charges, so the element is booked as a zero amount in the
+    ``totalValue`` currency (acceptance live-verified in the sandbox
+    follow-up). Without a derivable ``totalValue`` currency there is nothing
+    to take, and the element is omitted like every other underivable field.
+    """
+    provider_units.enforce_customs_declaration_lines(
+        len(customs.commodities), field="customs.commodities"
+    )
+    provider_units.enforce_declaration_registration_numbers(options, shipper)
+    provider_units.enforce_customs_line_content(customs.commodities)
+
+    total_gross_weight = _total_gross_weight(parcel_weight, customs.commodities)
+    total_value = _total_value(customs.commodities)
+    category = (
+        provider_units.CN22CategoryType.lookup(customs.content_type)
+        if customs.content_type
+        else None
+    )
+
+    return postnord_req.CustomsDeclarationCN23Type(
+        **_declaration_registration(options, shipper),
+        categoryOfItem=lib.identity(
+            postnord_req.CategoryOfItemType(categoryType=[category])
+            if category
+            else None
+        ),
+        detailedDescription=[
+            _customs_line(index, commodity)
+            for index, commodity in enumerate(customs.commodities)
+        ],
+        totalGrossWeight=lib.identity(
+            postnord_req.TotalGrossWeightType(value=total_gross_weight, unit="KGM")
+            if total_gross_weight
+            else None
+        ),
+        totalValue=total_value,
+        postalCharges=lib.identity(
+            postnord_req.GoodsValueType(amount=0, currency=total_value.currency)
+            if total_value and total_value.currency
+            else None
+        ),
+    )
+
+
+def _customs_invoice_errors(
+    shipper: units.ComputedAddress,
+    recipient: units.ComputedAddress,
+    customs: models.Customs,
+    invoice_number: typing.Optional[str],
+) -> typing.Dict[str, str]:
+    """Collect the customs invoice fields the booking swagger requires.
+
+    Seller ``vatNo`` (strictly the shipper's federal tax identifier; the
+    state identifier is reserved for EORI resolution), ``invoice.invoiceNo``,
+    seller and buyer ``contacts.name``/``phoneNo``, and per-line
+    ``hsTariffNumber`` and ``countryOfOrigin`` are required by
+    booking.swagger.json and cannot be derived when absent from the unified
+    payload.
+    """
+    required = "is required for a PostNord customs invoice"
+    party_errors = {
+        f"{role}.{field}": message
+        for role, address in (("shipper", shipper), ("recipient", recipient))
+        for field, message, value in (
+            ("person_name", f"contact name {required}", address.contact),
+            ("phone_number", f"contact phone number {required}", address.phone_number),
+        )
+        if not value
+    }
+    line_errors = {
+        f"customs.commodities[{index}].{field}": f"{label} {required} line"
+        for index, commodity in enumerate(customs.commodities)
+        for field, label in (
+            ("hs_code", "HS tariff number"),
+            ("origin_country", "country of origin"),
+        )
+        if not getattr(commodity, field)
+    }
+
+    return {
+        **(
+            {"shipper.federal_tax_id": f"shipper VAT number {required}"}
+            if not shipper.federal_tax_id
+            else {}
+        ),
+        **(
+            {
+                "customs.invoice": (
+                    f"invoice number {required}; "
+                    "send customs.invoice or a shipment reference"
+                )
+            }
+            if not invoice_number
+            else {}
+        ),
+        **party_errors,
+        **line_errors,
+    }
+
+
+def _invoice_party(
+    address: units.ComputedAddress, **identification
+) -> postnord_req.BuyerType:
+    """Map a unified address onto a customs invoice seller or buyer."""
+    return postnord_req.BuyerType(
+        name=address.company_name or address.person_name,
+        streets=[_ for _ in [address.address_line1, address.address_line2] if _],
+        city=address.city,
+        postalCode=address.postal_code,
+        countryCode=address.country_code,
+        contacts=postnord_req.ContactType(
+            name=address.contact,
+            phoneNo=address.phone_number,
+            emailAddress=address.email,
+        ),
+        **identification,
+    )
+
+
+def _customs_invoice_line(
+    commodity: models.Commodity,
+) -> postnord_req.CustomsInvoiceDetailedDescriptionType:
+    weight = _line_weight(commodity)
+    weight_element = lib.identity(
+        postnord_req.TotalGrossWeightType(value=weight, unit="KGM") if weight else None
+    )
+
+    return postnord_req.CustomsInvoiceDetailedDescriptionType(
+        quantity=commodity.quantity,
+        hsTariffNumber=commodity.hs_code,
+        content=commodity.title or commodity.description,
+        countryOfOrigin=commodity.origin_country,
+        netWeight=weight_element,
+        grossWeight=weight_element,
+        itemValue=lib.identity(
+            postnord_req.GoodsValueType(
+                amount=_line_value(commodity),
+                currency=commodity.value_currency,
+            )
+            if commodity.value_amount
+            else None
+        ),
+    )
+
+
+def _customs_invoice(
+    customs: models.Customs,
+    options: units.CustomsOptions,
+    shipper: units.ComputedAddress,
+    recipient: units.ComputedAddress,
+    invoice_number: typing.Optional[str],
+    parcel_weight: typing.Optional[float],
+    settings: provider_utils.Settings,
+) -> postnord_req.CustomsInvoiceType:
+    """Map unified customs data onto the booking's customs invoice branch.
+
+    PostNord takes a customs invoice instead of CN22/CN23 for parcel
+    products. The shipper is the seller and the recipient the buyer;
+    ``commercial_invoice`` selects COMMERCIAL or PROFORMA literally. Line
+    values and weights are totals over the quantity; the invoice total and
+    total net weight sum the lines, while the total gross weight is the
+    parcel weight, which includes packaging. Registration numbers pass
+    through without the CN22 completeness rule, which the sandbox did not
+    apply to customs invoices; the EORI resolves through the shared
+    option-then-address helper (``resolve_eori_number``).
+    """
+    provider_units.enforce_customs_line_content(customs.commodities)
+    errors = _customs_invoice_errors(shipper, recipient, customs, invoice_number)
+    if errors:
+        raise lib.exceptions.FieldError(errors)
+
+    total_net_weight = _total_weight(customs.commodities)
+    total_gross_weight = _total_gross_weight(parcel_weight, customs.commodities)
+
+    return postnord_req.CustomsInvoiceType(
+        declarationType=provider_units.CustomsDeclarationType.invoice_export_declaration.value,
+        type=lib.identity(
+            provider_units.CustomsInvoiceType.commercial.value
+            if customs.commercial_invoice
+            else provider_units.CustomsInvoiceType.proforma.value
+        ),
+        voec=options.voec_number.state or None,
+        ioss=options.ioss_number.state or None,
+        seller=_invoice_party(
+            shipper,
+            partyIdentification=lib.identity(
+                postnord_req.PartyIdentificationType(
+                    partyId=settings.customer_number,
+                    partyIdType="160",
+                )
+                if settings.customer_number
+                else None
+            ),
+            vatNo=shipper.federal_tax_id,
+            eoriNo=provider_units.resolve_eori_number(options, shipper),
+        ),
+        buyer=_invoice_party(recipient, vatNo=recipient.tax_id),
+        invoice=postnord_req.InvoiceType(
+            invoiceNo=invoice_number,
+            shippingDate=customs.invoice_date,
+            reasonForExportation=provider_units.ExportReason.permanent_export.value,
+        ),
+        detailedDescription=[
+            _customs_invoice_line(commodity) for commodity in customs.commodities
+        ],
+        totalNetWeight=lib.identity(
+            postnord_req.TotalGrossWeightType(value=total_net_weight, unit="KGM")
+            if total_net_weight
+            else None
+        ),
+        totalGrossWeight=lib.identity(
+            postnord_req.TotalGrossWeightType(value=total_gross_weight, unit="KGM")
+            if total_gross_weight
+            else None
+        ),
+        invoiceTotal=_total_value(customs.commodities),
+    )
+
+
+def shipment_request(
+    payload: models.ShipmentRequest,
+    settings: provider_utils.Settings,
+) -> lib.Serializable:
+    shipper = lib.to_address(payload.shipper)
+    recipient = lib.to_address(payload.recipient)
+    packages = lib.to_packages(payload.parcels)
+    service = provider_units.ShippingService.map(payload.service).value_or_key
+
+    # File format is selected by endpoint path in the proxy; resolve
+    # payload.label_type -> connection default -> PDF and thread it via ctx.
+    label_type = lib.identity(
+        provider_units.LabelType.map(
+            payload.label_type or settings.connection_config.label_type.state
+        ).value
+        or provider_units.LabelType.PDF.value
+    )
+    options = lib.to_shipping_options(
+        payload.options,
+        package_options=packages.options,
+        initializer=provider_units.shipping_options_initializer,
+    )
+
+    # Truthy-state emission: an explicit False (or zero-valued float) must not
+    # book its additional service — Options.items() filters by key, not state.
+    # The service-point detail members carry the chosen point's party data,
+    # not additionalServiceCode values, so they stay out of the code list.
+    additional_service_codes = [
+        option.code
+        for key, option in options.items()
+        if option.state and key not in provider_units.SERVICE_POINT_DETAIL_OPTIONS
+    ]
+
+    # A chosen service point switches the product into optional-service-point
+    # mode (A7) and pairs with SMS (A3) when the consignee has a phone, per
+    # the official "MyPack Collect (19) + Addon: Optional Servicepoint" sample.
+    service_point = _service_point_details(options)
+    if service_point:
+        if "A7" not in additional_service_codes:
+            additional_service_codes.append("A7")
+        if recipient.phone_number and "A3" not in additional_service_codes:
+            additional_service_codes.append("A3")
+
+    # Booking locale: request options.language > connection config language >
+    # recipient country (when config locale_by_recipient is enabled) > "en".
+    # Sent lowercase as the query `locale` (SMS/Email language) and uppercased
+    # as the body `language` element (label/document text). A non-string
+    # request value is coerced: PlainDictField does not enforce inner types,
+    # and `.upper()` on it would raise inside failsafe and drop the booking.
+    locale = str(
+        (payload.options or {}).get("language")
+        or settings.connection_config.language.state
+        or (
+            provider_units.CountryLocale.lookup(recipient.country_code)
+            if settings.connection_config.locale_by_recipient.state
+            else None
+        )
+        or "en"
+    )
+
+    # Recipient entry (door) code, sent as a freeText with the ZDC usage code
+    # and printed as "Ref 2" on the label. PostNord does not document which
+    # services accept it, so the value is passed through unverified; only the
+    # length is enforced, rejecting the booking via a ctx flag the proxy turns
+    # into a fault response (see proxy.create_shipment).
+    entry_code = lib.identity(
+        str((payload.options or {}).get("entry_code") or "").strip() or None
+    )
+    entry_code_error = lib.identity(
+        f"options.entry_code exceeds {provider_units.ENTRY_CODE_MAX_LENGTH} characters"
+        if entry_code and len(entry_code) > provider_units.ENTRY_CODE_MAX_LENGTH
+        else None
+    )
+
+    requested_standalone = (payload.options or {}).get(
+        "postnord_standalone_customs_documents"
+    )
+    standalone_customs_documents = provider_units.to_flag(
+        settings.connection_config.postnord_standalone_customs_documents.state
+        if requested_standalone is None
+        else requested_standalone
+    )
+
+    # Assign a client-controlled shipmentId from the merchant reference so the
+    # booking carries a searchable Track & Trace id; without one PostNord
+    # auto-allocates an opaque id. Prefer the caller reference; fall back to a
+    # generated id (unit tests always set a reference). Cancellation is not
+    # performed via this id (see shipment/cancel.py).
+    shipment_id = payload.reference or uuid.uuid4().hex[:12].upper()
+
+    # Customs data rides the booking EDI in the shipment entry: letters as
+    # the CN22 branch, International Parcel as the CN23 branch, and parcel
+    # products as the customs invoice branch; without customs data no branch
+    # is present so the request shape is unchanged. Registration options
+    # convert through the provider CustomsOption enum so
+    # voec_number/ioss_number survive the typed-options filtering (see
+    # units.CustomsOption); commodity lines keep flowing from the raw
+    # customs model because the Products wrapper normalizes missing
+    # quantity/weight_unit and would change line emission. Callers may send
+    # customs data maximally; within the EU VAT area no customs declaration
+    # is required, so every customs structure and its fail-fast checks are
+    # dropped and the omission is reported as a warning.
+    within_eu_vat_area = all(
+        provider_units.in_eu_vat_area(address.country_code, address.postal_code)
+        for address in (shipper, recipient)
+    )
+    customs_omitted = within_eu_vat_area and bool(
+        payload.customs
+        and (payload.customs.commodities or payload.customs.options)
+    )
+    has_customs = lib.identity(
+        bool(payload.customs and payload.customs.commodities)
+        and not within_eu_vat_area
+    )
+    customs_structure = provider_units.customs_structure(service)
+    if has_customs:
+        provider_units.enforce_customs_option_placement(payload.options)
+
+    customs_options = lib.to_customs_info(
+        payload.customs, option_type=provider_units.CustomsOption
+    ).options
+    customs_declaration = lib.identity(
+        _customs_declaration(
+            payload.customs,
+            options=customs_options,
+            parcel_weight=packages.weight.KG,
+            shipper=shipper,
+        )
+        if has_customs and customs_structure == provider_units.CustomsStructure.cn22
+        else None
+    )
+    customs_declaration_cn23 = lib.identity(
+        _customs_declaration_cn23(
+            payload.customs,
+            options=customs_options,
+            parcel_weight=packages.weight.KG,
+            shipper=shipper,
+        )
+        if has_customs and customs_structure == provider_units.CustomsStructure.cn23
+        else None
+    )
+    customs_invoice = lib.identity(
+        _customs_invoice(
+            payload.customs,
+            options=customs_options,
+            shipper=shipper,
+            recipient=recipient,
+            invoice_number=payload.customs.invoice or payload.reference,
+            parcel_weight=packages.weight.KG,
+            settings=settings,
+        )
+        if has_customs
+        and customs_structure == provider_units.CustomsStructure.customs_invoice
+        else None
+    )
+
+    def _party(address, *, with_consignor_id: bool) -> postnord_req.ConsigneeType:
+        return postnord_req.ConsigneeType(
+            issuerCode=settings.issuer_code,
+            partyIdentification=lib.identity(
+                postnord_req.PartyIdentificationType(
+                    partyId=settings.customer_number,
+                    partyIdType="160",
+                )
+                if with_consignor_id and settings.customer_number
+                else None
+            ),
+            party=postnord_req.PartyType(
+                nameIdentification=postnord_req.NameIdentificationType(
+                    name=address.person_name or address.company_name,
+                    companyName=address.company_name,
+                ),
+                address=postnord_req.AddressType(
+                    streets=[_ for _ in [address.address_line1, address.address_line2] if _],
+                    postalCode=address.postal_code,
+                    city=address.city,
+                    state=address.state_code,
+                    countryCode=address.country_code,
+                ),
+                contact=postnord_req.ContactType(
+                    contactName=address.person_name,
+                    emailAddress=address.email,
+                    phoneNo=address.phone_number,
+                    smsNo=address.phone_number,
+                ),
+            ),
+        )
+
+    request = postnord_req.ShipmentRequestType(
+        messageDate=datetime.datetime.now().isoformat(timespec="seconds"),
+        # Uppercase ISO 639-1 language code for label/document text elements;
+        # the query `locale` (SMS/Email language) is the lowercase variant.
+        language=(locale.upper() if locale else None),
+        updateIndicator="Original",
+        testIndicator=settings.test_mode,
+        application=postnord_req.ApplicationType(
+            name="Karrio",
+            applicationId=lib.to_int(settings.application_id),
+        ),
+        shipment=[
+            postnord_req.ShipmentType(
+                shipmentIdentification=postnord_req.ShipmentIdentificationType(
+                    shipmentId=shipment_id,
+                ),
+                service=postnord_req.ServiceType(
+                    basicServiceCode=service,
+                    additionalServiceCode=additional_service_codes or None,
+                ),
+                # [] (not None): the JList converter wraps an explicit None
+                # into [None], which survives to_dict as a bogus freeText entry.
+                freeText=lib.identity(
+                    [
+                        postnord_req.FreeTextType(
+                            usageCode=provider_units.ENTRY_CODE_USAGE_CODE,
+                            text=entry_code,
+                        )
+                    ]
+                    if entry_code and entry_code_error is None
+                    else []
+                ),
+                parties=postnord_req.PartiesType(
+                    consignor=_party(shipper, with_consignor_id=True),
+                    consignee=_party(recipient, with_consignor_id=False),
+                    deliveryParty=lib.identity(
+                        _delivery_party(service_point) if service_point else None
+                    ),
+                ),
+                goodsItem=[
+                    postnord_req.GoodsItemType(
+                        packageTypeCode=provider_units.PackagingType.map(
+                            package.packaging_type or "your_packaging"
+                        ).value,
+                        numberOfPackageTypeCodeItems=postnord_req.NumberOfPackagesType(
+                            value=1,
+                        ),
+                        items=[
+                            postnord_req.ItemType(
+                                itemIdentification=postnord_req.ItemIdentificationType(
+                                    # "0" tells PostNord to allocate the parcel id
+                                    # (returned as the tracking number). An arbitrary
+                                    # value triggers "unable to determine id type",
+                                    # since PostNord infers the id scheme (SSCC/S10/…)
+                                    # from the value.
+                                    itemId="0",
+                                ),
+                                grossWeight=postnord_req.TotalGrossWeightType(
+                                    value=package.weight.KG,
+                                    unit="KGM",
+                                ),
+                                dimensions=lib.identity(
+                                    postnord_req.DimensionsType(
+                                        height=postnord_req.TotalGrossWeightType(
+                                            value=package.height.CM, unit="CMT"
+                                        ),
+                                        width=postnord_req.TotalGrossWeightType(
+                                            value=package.width.CM, unit="CMT"
+                                        ),
+                                        length=postnord_req.TotalGrossWeightType(
+                                            value=package.length.CM, unit="CMT"
+                                        ),
+                                    )
+                                    if any([package.height, package.width, package.length])
+                                    else None
+                                ),
+                            )
+                        ],
+                    )
+                    for package in packages
+                ],
+                customsDeclarationCN22=customs_declaration,
+                customsDeclarationCN23=customs_declaration_cn23,
+                customsInvoice=customs_invoice,
+            )
+        ],
+    )
+
+    return lib.Serializable(
+        request,
+        lib.to_dict,
+        dict(
+            shipment_id=shipment_id,
+            label_type=label_type,
+            locale=locale,
+            entry_code_error=entry_code_error,
+            # The proxy gates the implicit by-id customs document fetch on the
+            # resolved service code and on the declaration having been embedded.
+            basic_service_code=service,
+            customs_declared=(
+                customs_declaration is not None
+                or customs_declaration_cn23 is not None
+                or customs_invoice is not None
+            ),
+            standalone_customs_documents=standalone_customs_documents,
+            customs_omitted=lib.identity(
+                dict(
+                    shipper_country_code=shipper.country_code,
+                    recipient_country_code=recipient.country_code,
+                )
+                if customs_omitted
+                else None
+            ),
+        ),
+    )
+
+
+def _service_point_details(options) -> typing.Optional[dict]:
+    """Collect the chosen service point from shipment options, or None.
+
+    An id without complete name/address details refuses before any request
+    is sent, naming the missing option keys — PostNord rejects a
+    deliveryParty without a name and address, so the booking fails locally
+    instead of as a carrier fault (the dhl_freight_sweden connector's
+    service-point discipline).
+    """
+    point_id = options.postnord_service_point_id.state
+    if not point_id:
+        return None
+
+    # Keys double as the ``postnord_service_point_{key}`` option names.
+    details = dict(
+        name=options.postnord_service_point_name.state,
+        street=options.postnord_service_point_street.state,
+        city=options.postnord_service_point_city.state,
+        postal_code=options.postnord_service_point_postal_code.state,
+        country_code=options.postnord_service_point_country_code.state,
+    )
+    missing = [key for key, value in details.items() if not value]
+
+    if any(missing):
+        raise lib.exceptions.FieldError(
+            {
+                f"options.postnord_service_point_{key}": (
+                    "a chosen service point requires the complete point details"
+                )
+                for key in missing
+            }
+        )
+
+    return {"id": point_id, **details}
+
+
+def _delivery_party(point: dict) -> postnord_req.ConsigneeType:
+    """The chosen point as an EDI deliveryParty (partyIdType "156")."""
+    return postnord_req.ConsigneeType(
+        partyIdentification=postnord_req.PartyIdentificationType(
+            partyId=point["id"],
+            partyIdType="156",
+        ),
+        party=postnord_req.PartyType(
+            nameIdentification=postnord_req.NameIdentificationType(
+                name=point["name"],
+            ),
+            address=postnord_req.AddressType(
+                streets=[point["street"]],
+                postalCode=point["postal_code"],
+                city=point["city"],
+                countryCode=point["country_code"],
+            ),
+        ),
+    )
