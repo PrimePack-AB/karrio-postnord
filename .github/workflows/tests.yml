@@ -1,0 +1,36 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  # Fork SDK floor (fork-only stamping PluginMetadata fields): the public
+  # Joaqim/karrio ref the connector is tested against. Bump on release.
+  FORK_REF: 65468d813
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check out the fork SDK next to the connector
+        uses: actions/checkout@v5
+        with:
+          repository: Joaqim/karrio
+          ref: ${{ env.FORK_REF }}
+          path: ../karrio
+          submodules: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the fork SDK and the connector
+        run: pip install -e ../karrio/modules/sdk -e .
+      - name: Run the connector test suite
+        run: python -m unittest discover -f -s tests
