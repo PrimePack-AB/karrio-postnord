@@ -3,7 +3,7 @@ title: "Development"
 ---
 
 This section is for working on the connector itself.
-The README is the consumer guide; [Plugin layout](architecture/plugin-layout.md) describes how the package registers with karrio and why it is coupled to the karrio fork.
+The README is the consumer guide; [Plugin layout](architecture/plugin-layout.md) describes how the package registers with karrio and why it is coupled to the karrio fork, and [Documentation site](architecture/docs-site.md) describes how `docs/` is built and published.
 Working notes, including the verification records, are indexed in [docs/notes](../notes/README.md).
 
 ## Setup

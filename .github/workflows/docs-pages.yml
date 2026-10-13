@@ -1,0 +1,38 @@
+name: docs-pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/**
+      - .github/workflows/docs-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: PrimePack-AB/starlight-docs-harness@6a9f84bb9c05cc5b3b3e7925d21d6ddfb51da57f # v1.3
+        with:
+          repo-url: https://github.com/PrimePack-AB/karrio-postnord
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
