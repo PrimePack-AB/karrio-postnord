@@ -9,8 +9,17 @@ This package is a PostNord extension of the [karrio](https://pypi.org/project/ka
 ## Installation
 
 ```bash
-pip install karrio.postnord
+pip install git+https://github.com/PrimePack-AB/karrio-postnord.git
 ```
+
+The package registers through the `karrio.plugins` entry point group under the id `postnord`, so installing it makes the carrier available to every karrio SDK runtime, and uninstalling it removes the carrier.
+A Karrio server builds its reference models at boot, so restart the API after installing or upgrading the plugin; `GET /v1/references` then lists the carrier.
+A server deployment can also expose the package through the `KARRIO_PLUGINS` directory mount instead of installing it.
+
+### Fork SDK floor
+
+This connector is fork-coupled: it uses the document-stamping `PluginMetadata` fields that exist only in the [Joaqim/karrio](https://github.com/Joaqim/karrio) fork's SDK, not in upstream karrio, so a runtime on upstream karrio cannot import it.
+The package declares a plain `karrio` dependency because no pip-solvable fork reference exists; the karrio the plugin runs against must therefore be a fork checkout on a ref carrying the stamping SDK surface, such as the develop union `65468d813` that CI pins.
 
 ## Usage
 
@@ -263,3 +272,25 @@ Cancellation is not available over the REST API: PostNord's REST `/v3/edi` ignor
 Manifest is not supported: PostNord has no scan-form/end-of-day manifest endpoint. Use `Pickup.schedule` for courier collection.
 
 Transit-time enrichment is opt-in (`enable_transit_times`, default off) because it requires a key subscribed to the Transit Time product. When enabled but unavailable, rating degrades gracefully to static transit days with a warning rather than failing.
+
+## Development
+
+Clone this repository next to a checkout of the [Joaqim/karrio](https://github.com/Joaqim/karrio) fork, create a virtual environment, and install the fork SDK together with the connector:
+
+```bash
+python3.12 -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt   # -e ../karrio/modules/sdk, fork-coupled (see Fork SDK floor)
+.venv/bin/pip install -e .
+```
+
+Run the test suite from the repository root; running it from another directory can resolve a different checkout's provider code first:
+
+```bash
+.venv/bin/python -m unittest discover -f -s tests -v
+```
+
+Regenerate the `karrio/schemas/postnord` modules after editing `schemas/*.json` by pointing `ROOT` at the karrio monorepo checkout:
+
+```bash
+ROOT=../karrio ./generate
+```
