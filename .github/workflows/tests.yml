@@ -20,17 +20,17 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
-      - name: Check out the fork SDK next to the connector
+      - name: Check out the fork SDK into the workspace
         uses: actions/checkout@v5
         with:
           repository: Joaqim/karrio
           ref: ${{ env.FORK_REF }}
-          path: ../karrio
+          path: karrio-sdk
           submodules: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install the fork SDK and the connector
-        run: pip install -e ../karrio/modules/sdk -e .
+        run: pip install -e karrio-sdk/modules/sdk -e .
       - name: Run the connector test suite
         run: python -m unittest discover -f -s tests
