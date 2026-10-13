@@ -1,0 +1,7 @@
+{
+  "include": ["karrio", "tests"],
+  "extraPaths": ["../karrio/modules/sdk"],
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.12"
+}
