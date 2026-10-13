@@ -1,0 +1,8 @@
+# karrio SDK from a local checkout at ../karrio (editable, subdirectory
+# modules/sdk). This connector is fork-coupled: the sibling checkout at
+# ../karrio must be Joaqim/karrio on a ref carrying the document-stamping
+# SDK surface; upstream karrio cannot import this plugin. git+https cannot
+# install the SDK either: pip recursively fetches the monorepo's private
+# karrioapi submodules (ee/insiders, ee/platform) and fails, although
+# modules/sdk needs neither.
+-e ../karrio/modules/sdk
