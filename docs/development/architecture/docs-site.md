@@ -50,7 +50,7 @@ A link the plugin cannot rewrite is reported as a `[rehype-repo-links]` warning 
 ## Excluded working notes
 
 `docs/notes/` holds the ported working notes and the verification records, and the harness excludes the directory by not mounting it, so the notes are readable only in the repository, and links to them from published pages become GitHub URLs.
-The notes index is [docs/notes/README.md](../../../notes/README.md).
+The notes index is [docs/notes/README.md](../../../docs/notes/README.md).
 
 ## Disabled Starlight features
 
