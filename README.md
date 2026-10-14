@@ -1,4 +1,7 @@
 # karrio.postnord
+>
+> [!WARNING]
+> This project is actively in development, expect breaking changes.
 
 This package is a PostNord extension of the [karrio](https://pypi.org/project/karrio) multi carrier shipping SDK.
 
@@ -53,7 +56,7 @@ Authorization is granted per API product: a key may be authorized for Booking bu
 ## Connection settings
 
 | Setting | Required | Default | Description |
-|---------|----------|---------|-------------|
+| --------- | ---------- | --------- | ------------- |
 | `apikey` | yes | — | PostNord API key (query-param credential) |
 | `customer_number` | yes | — | PostNord customer number |
 | `application_id` | yes | — | PostNord application id |
@@ -64,7 +67,7 @@ Authorization is granted per API product: a key may be authorized for Booking bu
 Connection config options (under the connection's config):
 
 | Option | Default | Description |
-|--------|---------|-------------|
+| -------- | --------- | ------------- |
 | `label_type` | `PDF` | Per-connection default label file format (`PDF` or `ZPL`), overridden per request by the shipment `label_type`. PostNord selects the format by endpoint path (`/labels/pdf` vs `/labels/zpl`). |
 | `label_size` | — (unset) | PostNord physical label size, sent as the `labelType` query parameter: `standard` (190×105mm), `small` (75×105mm), or `ste` (PDF-only). Unset omits the parameter and PostNord defaults to `standard`. |
 | `enable_transit_times` | `false` | Opt-in: call the Transit Time API to enrich `transit_days`/estimated delivery and filter by serviceability. Requires the key to be subscribed to the Transit Time product. |
@@ -79,7 +82,7 @@ Tracked Letter (34) and Export Letter (UX) are rateable catalog services but are
 ## Shipment options
 
 | Option | Type | Default | Description |
-|--------|------|---------|-------------|
+| -------- | ------ | --------- | ------------- |
 | `entry_code` | string | — | PostNord entry code (door code) for the recipient's building, e.g. an apartment entrance code. Sent as a shipment `freeText` with usage code `ZDC`; PostNord prints it as "Ref 2" on the label and maps it to the consignee reference. Max 50 characters: a longer value rejects the booking with an `ENTRY_CODE_LENGTH` message before any call to PostNord. PostNord does not document which services accept it — the value is passed through unverified and is ignored by services without door-code support. |
 | `postnord_standalone_customs_documents` | bool | connection config, else `false` | Attach the standalone customs declaration of a letter (CN22) or International Parcel (91, CN23) booking with customs data to `docs.extra_documents`, fetched by id in the label's format. Read by the connector only; never sent to PostNord as an additional service. |
 | `language` | string | `en` | Booking/notification locale (lowercase ISO 639-1), sent as the query `locale` (SMS/Email language) and uppercased as the body `language` element (label/document text). Resolved per request, then from connection config, then (with `locale_by_recipient` enabled) from the recipient's country code. PostNord's documented booking default is `sv`, but the connector sends `en` when nothing else resolves, so Swedish-market connections that expect Swedish SMS/Email text should set `config.language` to `sv`. |
@@ -93,7 +96,7 @@ Tracked Letter (34) and Export Letter (UX) are rateable catalog services but are
 PostNord has no notification-suppress flag: the consignee is notified only when a notification additional service is booked, and channels combine freely — setting only `sms_notification` books SMS and nothing else. `false` or omitted books nothing, with one exception: a chosen service point appends `A3` on the consignee phone even against an explicit `sms_notification: false` (see [Service points](#service-points)), because the recipient must learn where to collect. Per-service rules apply (documented, not enforced here); PostNord validates them at booking, not the connector:
 
 | Service | PostNord rule |
-|---------|---------------|
+| --------- | --------------- |
 | Parcel (18) | One of A2/A3/A4 must be booked. |
 | MyPack Home (17) | Consignee SMS or e-mail contact data is mandatory, and additional service C7 (`postnord_flexchange`) is mandatory unless A6 or F1 is booked; the connector has no option for A6 or F1. |
 | Return Pickup (20) | SMS is mandatory on both the consignor and the consignee party. |
@@ -115,7 +118,7 @@ The live ZPL body starts with persistent host commands (`^LL1520`, i.e. 190 mm a
 When `options.tracking_numbers` carries PostNord item ids and the pickup address country is SE, DK, or FI and equals `account_country_code`, the connector books through `POST /rest/shipment/v3/pickups/ids`, which only supports domestic pickups of items in SE, DK, and FI.
 Its body is one entry per item id with the pickup window, so the pickup address, `instruction`, `package_location`, and `options.service` are not sent on this path.
 
-Every other pickup is a pickup booking through `POST /rest/shipment/v3/pickups`, following PostNord's pickup guide (https://guide.developer.postnord.com/, Shipment / Booking / Booking APIs v3 / Book Pickups).
+Every other pickup is a pickup booking through `POST /rest/shipment/v3/pickups`, following PostNord's pickup guide (<https://guide.developer.postnord.com/>, Shipment / Booking / Booking APIs v3 / Book Pickups).
 The request carries `messageFunction` `PickupBooking`, a uuid4 `messageId`, basic service code `0` (domestic/Nordic pickup), package type `PC`, and `itemId` `"0"`; the pickup address is the consignor, so no pickup party is sent.
 The `instruction` (or `package_location`) is sent as a freeText with usage code `ADS`, only when one is given.
 `options.service` may select `0` or `CR` (collection request); any other value is rejected with a field error before booking.
@@ -161,7 +164,7 @@ Duties after booking, such as printing the customs documents and attaching the i
 CN22 mapping:
 
 | Unified input | CN22 field |
-|---------------|------------|
+| --------------- | ------------ |
 | `customs.content_type` | `categoryOfItem.categoryType` (see below) |
 | `customs.commodities[]` | `detailedDescription[]`: `title` (or `description`) as `content`, `quantity`, `grossWeight` in KGM, `value`, `hs_code` as `hsTariffNumber`, `origin_country` as `countryCode`, 1-based `rowNo` |
 | parcel weights | `totalGrossWeight` in KGM: sum of the parcel weights (including packaging), else sum of the commodity line weights |
@@ -180,7 +183,7 @@ The CN23 branch of International Parcel (91) reuses the CN22 mapping and these c
 Customs invoice mapping:
 
 | Unified input | Customs invoice field |
-|---------------|-----------------------|
+| --------------- | ----------------------- |
 | `customs.commercial_invoice` | `type`: `COMMERCIAL` when true, `PROFORMA` when false or omitted |
 | (fixed) | `declarationType` `invoiceExportDeclaration`, `invoice.reasonForExportation` `1000` (permanent export) |
 | shipper | `seller`: `company_name` (or `person_name`), address, `federal_tax_id` as `vatNo`, connection `customer_number` as `partyIdentification`, `customs.options.eori_number` as `eoriNo` |
@@ -260,7 +263,7 @@ Live checks found the digital endpoint's success response to be the bare `bookin
 ## Supported operations
 
 | Operation | Notes |
-|-----------|-------|
+| ----------- | ------- |
 | Rating | Static rates from the connection's service levels / server-side RateSheet (no carrier call by default). Optionally enriched with live transit times when `enable_transit_times` is on. |
 | Shipment | Booking + label retrieval in one call (`/rest/shipment/v3/edi/labels/pdf`, or `/labels/zpl` when the resolved label type is ZPL). |
 | Pickup | Domestic pickup by item id (`/v3/pickups/ids`) or pickup booking (`/v3/pickups`) via `Pickup.schedule`; see [Pickups](#pickups). |
