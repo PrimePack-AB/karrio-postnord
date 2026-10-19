@@ -157,7 +157,7 @@ A chosen point books through the six `postnord_service_point_*` shipment options
 
 When a shipment carries `customs` with at least one commodity, the booking embeds one customs structure selected by the service.
 When both the shipper and the recipient are inside the EU VAT area, no customs structure is sent, no customs document is fetched, and none of the customs field checks below apply; a caller-supplied `customs` block is reported as a `customs_omitted_intra_eu` warning message instead.
-The EU VAT area follows the DHL Freight Sweden connector's definition (`in_eu_vat_area` in `units.py`): Greece is accepted as `GR` or `EL`, and special fiscal territories such as Åland (`AX`, or `FI` 22000–22999), the Canary Islands, Ceuta, Melilla, Büsingen, Heligoland, Mount Athos, Livigno, Campione d'Italia, the French overseas departments and collectivities (including `FR` 97000–97999 and 98600–98899), and the Faroe Islands and Greenland (`DK` 3800–3999, a `DK` postal code prefixed `FO` or `GL`, or a three-digit `DK` postal code) are outside it.
+The EU VAT area follows the DHL Freight Sweden connector's definition (`in_eu_vat_area` in `units.py`): Greece is accepted as `GR` or `EL`, Monaco (`MC`) and Northern Ireland (`GB` postal codes beginning `BT`) are inside it, and special fiscal territories such as Åland (`AX`, or `FI` 22000–22999), the Canary Islands, Ceuta, Melilla, Büsingen, Heligoland, Mount Athos, Livigno, Campione d'Italia, the French overseas departments and collectivities (including `FR` 97000–97999 and 98600–98899), and the Faroe Islands and Greenland (`DK` 3800–3999, a `DK` postal code prefixed `FO` or `GL`, or a three-digit `DK` postal code) are outside it.
 Postal codes are compared after a leading country or territory code such as `FI-` or `AX` is removed.
 Currently, letter services (`LETTER_SERVICES` in `units.py`) send a CN22 declaration (`customsDeclarationCN22`), International Parcel (91) sends a CN23 declaration (`customsDeclarationCN23`), and every other service is a parcel product and sends a customs invoice (`customsInvoice`).
 International Parcel (91) books the CN23 unconditionally — PostNord's published requirement for Postpaket Utrikes is a CN23 at any value (customs documents pages and Postpaket Utrikes terms §2), not a CN22.
@@ -172,14 +172,15 @@ CN22 mapping:
 | parcel weights | `totalGrossWeight` in KGM: sum of the parcel weights (including packaging), else sum of the commodity line weights |
 | commodity values | `totalValue`: sum of the line values, currency of the first commodity that sets one |
 | `shipper.country_code` | `countryOfOrigin` |
-| `customs.options.eori_number` / `voec_number` / `ioss_number` | `EORIorPersonalIdNumber` / `voec` / `ioss` |
+| `customs.options.eori_number` (else the shipper `state_tax_id`) / `voec_number` / `ioss_number` | `EORIorPersonalIdNumber` / `voec` / `ioss` |
 
 `content_type` accepts Karrio's values or PostNord's own, ignoring case and extra whitespace: `documents`→`DOCUMENT`, `gift`→`GIFT`, `sample`→`COMMERCIAL SAMPLE`, `merchandise`→`SALE OF GOODS`, `return_merchandise`→`RETURNED GOODS`, `other`→`OTHER`.
 Other values are sent verbatim, and an absent `content_type` sends no `categoryOfItem`.
 
-A CN22 without any of EORI, VOEC, or IOSS under `customs.options` is rejected with a field error before any call, matching PostNord's rejection `SACUS-BR-24062502`.
+A CN22 without any of EORI, VOEC, or IOSS under `customs.options` and without a shipper `state_tax_id` to use as the EORI is rejected with a field error before any call, matching PostNord's rejection `SACUS-BR-24062502`.
 Commodity `weight` and `value_amount` are per unit, so each line carries them multiplied by `quantity`, on both the CN22 and the customs invoice.
 A CN22 accepts at most 13 commodity lines; more are rejected before any call to PostNord.
+A commodity with neither `title` nor `description` is rejected before any call, on the CN22 and the customs invoice alike.
 The CN23 branch of International Parcel (91) reuses the CN22 mapping and these checks in full, minus the CN22-only `countryOfOrigin`, and books `postalCharges` — required by the booking swagger but absent from the unified model — as a zero amount in the `totalValue` currency, a shape the PostNord sandbox accepted (test mode; `tests/postnord/fixtures/sandbox/p1-cn23-gateway.response.json`).
 
 Customs invoice mapping:
@@ -188,7 +189,7 @@ Customs invoice mapping:
 | --------------- | ----------------------- |
 | `customs.commercial_invoice` | `type`: `COMMERCIAL` when true, `PROFORMA` when false or omitted |
 | (fixed) | `declarationType` `invoiceExportDeclaration`, `invoice.reasonForExportation` `1000` (permanent export) |
-| shipper | `seller`: `company_name` (or `person_name`), address, `federal_tax_id` as `vatNo`, connection `customer_number` as `partyIdentification`, `customs.options.eori_number` as `eoriNo` |
+| shipper | `seller`: `company_name` (or `person_name`), address, `federal_tax_id` as `vatNo`, connection `customer_number` as `partyIdentification`, `customs.options.eori_number` (else the shipper `state_tax_id`) as `eoriNo` |
 | recipient | `buyer`: same address mapping, tax id as `vatNo` when present |
 | party `person_name` (or `company_name`), `phone_number`, `email` | `contacts` |
 | `customs.options.voec_number` / `ioss_number` | `voec` / `ioss` |
@@ -197,7 +198,7 @@ Customs invoice mapping:
 | commodity weights and values | `totalNetWeight` (sum of the line weights), `invoiceTotal` (sum of the line values, currency of the first commodity that sets one) |
 | parcel weights | `totalGrossWeight`: sum of the parcel weights (including packaging), else sum of the commodity line weights |
 
-A customs invoice is rejected with a field error before any call when the shipper has no tax id, when neither `customs.invoice` nor `reference` is set, when the shipper or recipient lacks a contact name or phone number, or when a commodity lacks `hs_code` or `origin_country`.
+A customs invoice is rejected with a field error before any call when a commodity has neither `title` nor `description`, when the shipper has no `federal_tax_id`, when neither `customs.invoice` nor `reference` is set, when the shipper or recipient lacks a contact name or phone number, or when a commodity lacks `hs_code` or `origin_country`.
 Registration numbers are optional on the customs invoice.
 
 Registration-number keys under shipment `options` are rejected with a field error, because unknown shipment options would otherwise be dropped silently.
