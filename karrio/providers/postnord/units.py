@@ -593,7 +593,7 @@ def enforce_declaration_registration_numbers(
 def enforce_customs_line_content(commodities: typing.List[models.Commodity]) -> None:
     """Raise a FieldError when a customs line would carry no goods description.
 
-    Every CN22 and customs invoice line sends ``content`` from the
+    Every CN22, CN23, and customs invoice line sends ``content`` from the
     commodity title, or its description when the title is empty;
     booking.swagger.json requires ``content`` with minLength 1 on every
     customs line object. All offending commodities are named at once.
