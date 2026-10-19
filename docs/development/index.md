@@ -28,7 +28,7 @@ Run the suite from the repository root; running it from another directory can re
 .venv/bin/python -m unittest discover -f -s tests
 ```
 
-A single test module uses the discover form with a pattern, not a dotted module path — `tests/__init__.py` imports `postnord.*`, which only resolves when discovery runs from `tests`:
+A single test module uses the discover form with a pattern, not a dotted module path — the two label stamping modules import the top-level `postnord` package, which only resolves when discovery runs from `tests`:
 
 ```bash
 .venv/bin/python -m unittest discover -v -f -s tests -p "test_rate.py"
