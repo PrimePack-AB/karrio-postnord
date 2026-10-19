@@ -5,7 +5,7 @@ created: 2026-10-19
 
 # PostNord CN23 composition sandbox probes
 
-*Grounding the 91/CN23 composed-label and customs-gate questions in test-mode truth: what PostNord accepts without an applicationId, and what it composes when it accepts.*
+*Grounding the 91/CN23 composed-label and customs-gate questions in test-mode truth: what the customs gate demands, and what PostNord composes when it accepts.*
 *Repo-origin note, not ported from the fork: created 2026-10-19, evidencing the env-gated sandbox probe harness (commit b999082) and its printId fixes (33d085f, f815271). Captures live under `$XDG_STATE_HOME/karrio-postnord/sandbox/` — `~/.local/state/karrio-postnord/sandbox/` at the default root — and are cited by run directory, file name, and sha256 only. Credentials are referenced by environment variable name only; no apikey, customer number, EORI, or application id value appears in this note.*
 
 ## Method
@@ -66,22 +66,25 @@ So inline customs satisfies the 91 customs gate with no `applicationId` anywhere
 ## P5 — application-linked no-customs 91 accepted (12:10:21 UTC)
 
 This segment was added after the first round (commit ccced54) to answer P3-91's rejection: it resends the P3-91 body unchanged plus the top-level `application` object carrying the configured four-digit application id (`POSTNORD_LIVE_APPLICATION_ID`, falling back to `POSTNORD_APPLICATION_ID`; the value is not recorded here).
-PostNord accepted it: HTTP 200, no faults, `bookingId` `ILPN0010LBQQAZFHQPNVKBOBIGPFDM`, item id `CC613724786SE`, printId `49b588e17ba543f38d1565da2be73418`, and the same two `SAO-HR-25060301` phone/sms sanitizations as P1.
-The `printoutComposition` was `{label: 1, cn23: 0}` — a one-page label-only PDF, no customs document — consistent with the declaration living externally under the application linkage.
-This capture was written after the printId-retention fix (33d085f) and is the first to carry a real printId through the redactor, which is what confirmed the fix live.
-The external-declaration path is therefore probed and open: application linkage alone satisfies the 91 customs gate, and PostNord composes no customs document for such a booking.
+PostNord accepted it: HTTP 200, no rejection faults, `bookingId` `ILPN0010LBQQAZFHQPNVKBOBIGPFDM`, item id `CC613724786SE`, printId `49b588e17ba543f38d1565da2be73418`, and the same two `SAO-HR-25060301` phone/sms sanitizations as P1.
+The `printoutComposition` was `{label: 1}` with every customs kind at 0 — a single one-page PDF, the bare label, and no blank customs form.
+That settles a question the spec leaves open: the default `definePrintout=ALL` prints labels plus the customs declarations PostNord has received (`vendor/booking.swagger.json`, 2026-09 snapshot), and with none received the printout is the bare label; blank forms come only from the explicit `labelsAndEmptyCN22`, `labelsAndEmptyCN23`, or `labelsAndEmptyCustomsInvoice` values.
+This capture was written after the printId-retention fix (33d085f) and is the first to carry a real printId through the redactor, which confirmed the fix live.
+Across P1, P3-91, and P5 the gate semantics are now grounded: PostNord enforces customs linkage at booking time, never customs content — an inline declaration (P1, no `applicationId` anywhere) or an application object vouching for an external declaration (P5, the post-booking flow `karrio/providers/postnord/customs.py` serves) each satisfies it, while a booking with neither customs data nor linkage is rejected (P3-91's `SACUS-BR-24100901`).
 
-## P4 — by-id only-customs fetch (12:10:56 UTC, degraded)
+## P4 — by-id only-customs fetch (12:10:56 UTC, void)
 
 The segment's design reads the latest P1 capture from the state directory — never re-booking — and, when it allocated a printId, posts `/rest/shipment/v3/labels/ids/pdf?definePrintout=onlyCustomsDeclarations` with that single id, raw and one shot.
 The first round could not run it: the redactor's 32-character apikey heuristic had masked P1's printId in the parsed capture, and the ledger had no printId field, so the fetch had nothing real to key on (fixed by 33d085f, which whitelists the artifact-id keys and records printIds in the ledger).
-The 12:10 UTC run nevertheless fired, keyed on the literal `<redacted>` sentinel the pre-fix P1 capture still holds — `find_print_id` then accepted any truthy string — and PostNord answered HTTP 200 with per-id `FAIL`, "id not found".
-That outcome matches the prior expectation from the fork's test-mode evidence (`docs/notes/sandbox/customs-declaration-live-verification.md`: by-id fetches return per-id FAIL "id not found" / "Unable to find EDI"), but as evidence it is degraded: the id queried was never a real printId, so the run shows only that a garbage id is not found.
-`find_print_id` now refuses the sentinel (f815271), and both the P1 and P4 markers have fired, so a cleanly keyed by-id probe would require a fresh CN23 booking under a new segment.
+The 12:10 UTC run fired anyway, keyed on the literal `<redacted>` sentinel the pre-fix P1 capture still held — `find_print_id` then accepted any truthy string, and the id sent was a ten-character string containing "redact" — so the id queried was never a real printId and the run is void: the recorded HTTP 200 with per-id `FAIL` "id not found" is our artifact, not PostNord behavior, and no claim about the by-id endpoint is made from it.
+Test-mode by-id behavior therefore stands on the prior fork evidence alone (`docs/notes/sandbox/customs-declaration-live-verification.md`: per-id FAIL "id not found" / "Unable to find EDI").
+`find_print_id` now refuses the sentinel (f815271), so reading a legacy capture skips instead of querying garbage.
+The p4 marker burned on this void run, and the harness exposes no flag to force a re-fire: a future meaningful by-id probe requires deliberately clearing the marker, and the segment reads the latest `p1_cn23_gateway` capture specifically — whose printId is still the pre-fix sentinel — so it also requires a fresh CN23 booking under a cleared p1 marker, or extending the segment to read a post-fix capture such as P5's, whose printId was retained.
+With printIds now retained, the next sandbox round can key the fetch for real; the skip on an uncleared marker must not be mistaken for an already-answered question.
 
 ## Scope limits
 
-Everything here is test mode: `testIndicator` true means no EDI is sent downstream, so production composition may still differ, and the by-id and declaration endpoints' test-mode unreachability stands (P4's degraded run notwithstanding; the fork note above remains the reference).
+Everything here is test mode: `testIndicator` true means no EDI is sent downstream, so production composition may still differ, and the by-id and declaration endpoints' test-mode unreachability stands on the prior fork evidence alone (P4 was void and claims nothing about it).
 SE-to-AL on service 18 fails id allocation outright (`SAI-BR-24111201`), so the invoice branch could not be exercised on this lane; the 2026-09-25 SE-to-NO capture remains the invoice-branch evidence (`docs/notes/sandbox/customs-invoice-live-verification.md`).
 P1's PDF establishes what test mode composes for a CN23 booking, but the stamping seeds and the SDK customs classifier still verify CN22 only; deriving CN23 seeds from this capture remains open.
 No committed evidence fixture derives from these captures yet, so published documentation pages outside `docs/notes/` make no claim on them — whether to commit redacted fixtures is an open decision.
