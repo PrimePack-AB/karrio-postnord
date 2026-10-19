@@ -86,5 +86,6 @@ class TestSandboxP2InvoiceGateway(unittest.TestCase):
             self.id(),
             tracking_number=shipment.tracking_number if shipment else None,
             booking_id=(shipment.meta or {}).get("booking_id") if shipment else None,
+            print_id=harness.find_print_id(bodies[0]) if bodies else None,
         )
         self.assertTrue(bodies, "no carrier call was captured")

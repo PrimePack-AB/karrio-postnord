@@ -172,6 +172,41 @@ class TestRedaction(unittest.TestCase):
         self.assertNotIn(unknown_key, safe)
         self.assertIn(harness.REDACTED, safe)
 
+    def test_redact_retains_print_and_booking_ids(self):
+        # A printId is a 32-character alphanumeric run, exactly what the
+        # apikey heuristic masks; under the artifact-id keys it must stand.
+        print_id = "z9Y8x7W6v5U4t3S2r1Q0p9O8n7M6l5K4"
+        artifact = dict(
+            bookingResponse=dict(
+                bookingId="ILPN0010LBQRBGFFMCWLWZDUNDFQVS",
+                idInformation=[
+                    dict(
+                        ids=[
+                            dict(
+                                idType="itemId",
+                                value="CC613724769SE",
+                                printId=print_id,
+                            )
+                        ]
+                    )
+                ],
+            ),
+            labelPrintout=[dict(itemIds=[dict(printId=print_id, status="OK")])],
+        )
+        safe = harness.redact(artifact, [SYNTHETIC_APIKEY])
+        self.assertEqual(
+            safe["bookingResponse"]["idInformation"][0]["ids"][0]["printId"], print_id
+        )
+        self.assertEqual(safe["labelPrintout"][0]["itemIds"][0]["printId"], print_id)
+        self.assertEqual(
+            safe["bookingResponse"]["bookingId"], "ILPN0010LBQRBGFFMCWLWZDUNDFQVS"
+        )
+
+    def test_redact_masks_the_secret_even_under_artifact_keys(self):
+        embedded = f"x{SYNTHETIC_APIKEY}x"
+        safe = harness.redact(dict(printId=embedded, booking_id=embedded), [SYNTHETIC_APIKEY])
+        self.assertEqual(safe, dict(printId=f"x{harness.REDACTED}x", booking_id=f"x{harness.REDACTED}x"))
+
     def test_redact_leaves_short_identifiers(self):
         value = dict(shipmentId="P3-NOCUSTOMS-18", partyId="12345678")
         self.assertEqual(harness.redact(value, []), value)
@@ -231,8 +266,23 @@ class TestCaptures(unittest.TestCase):
                 ),
             )
             label = base64.b64encode(b"%PDF-1.4 sandbox label bytes").decode()
+            print_id = "z9Y8x7W6v5U4t3S2r1Q0p9O8n7M6l5K4"
             body = {
-                "bookingResponse": {"idInformation": [{"status": "OK"}]},
+                "bookingResponse": {
+                    "bookingId": "ILPN0010LBQRBGFFMCWLWZDUNDFQVS",
+                    "idInformation": [
+                        {
+                            "status": "OK",
+                            "ids": [
+                                {
+                                    "idType": "itemId",
+                                    "value": "CC613724769SE",
+                                    "printId": print_id,
+                                }
+                            ],
+                        }
+                    ],
+                },
                 "labelPrintout": [
                     {
                         "printoutComposition": {"shippingLabel": 1, "cn22orcn23": 1},
@@ -266,6 +316,35 @@ class TestCaptures(unittest.TestCase):
                 document.read_bytes(), base64.b64decode(label)
             )
             self.assertNotIn(SYNTHETIC_APIKEY, (session.capture_dir / f"{stem}.request.json").read_text())
+            self.assertEqual(
+                response["body"]["bookingResponse"]["idInformation"][0]["ids"][0][
+                    "printId"
+                ],
+                print_id,
+            )
+            self.assertEqual(
+                response["body"]["bookingResponse"]["bookingId"],
+                "ILPN0010LBQRBGFFMCWLWZDUNDFQVS",
+            )
+
+    def test_log_booking_records_the_print_id(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session = offline_session(pathlib.Path(directory))
+            print_id = "z9Y8x7W6v5U4t3S2r1Q0p9O8n7M6l5K4"
+            session.log_booking(
+                "p1_cn23_gateway",
+                "postnord.test_p1_cn23_gateway.TestSandboxP1CN23Gateway"
+                ".test_book_91_to_albania_with_cn23",
+                tracking_number="CC613724769SE",
+                booking_id="ILPN0010LBQRBGFFMCWLWZDUNDFQVS",
+                print_id=print_id,
+            )
+            lines = (session.capture_dir / "bookings.jsonl").read_text().splitlines()
+            self.assertEqual(len(lines), 1)
+            entry = json.loads(lines[0])
+            self.assertEqual(entry["print_id"], print_id)
+            self.assertEqual(entry["booking_id"], "ILPN0010LBQRBGFFMCWLWZDUNDFQVS")
+            self.assertNotIn(SYNTHETIC_APIKEY, lines[0])
 
     def test_latest_segment_capture_prefers_the_newest_run(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -42,6 +42,14 @@ REDACTED = "<redacted>"
 # PostNord apikeys are 32-character alphanumeric tokens; any such run is
 # masked wherever it appears, so a rotated or unexpected key cannot survive.
 APIKEY_LIKE = re.compile(r"[A-Za-z0-9]{32}")
+# Artifact identifiers PostNord allocates are evidence, not credentials:
+# the repo's redaction carve-out lets printIds and bookingIds stand in
+# captures and notes. Keys carrying them (the API's camelCase and the
+# ledger's snake_case forms) skip the apikey heuristic only; the literal
+# configured secrets are still masked inside them.
+ARTIFACT_ID_KEYS = frozenset(
+    {"printid", "print_id", "bookingid", "booking_id"}
+)
 DOCUMENT_EXTENSIONS = {"PDF": "pdf", "ZPL": "zpl"}
 
 
@@ -176,23 +184,32 @@ def strip_query(url: str) -> str:
 
 
 def redact(value: typing.Any, secrets: typing.Iterable[typing.Optional[str]]) -> typing.Any:
-    """Copy ``value`` with query strings stripped and apikey-like runs masked."""
+    """Copy ``value`` with query strings stripped and apikey-like runs masked.
+
+    Values under the artifact-id keys keep their 32-character identifier
+    runs: a printId or bookingId is booking evidence the carve-out permits,
+    and only the literal configured secrets are masked inside them.
+    """
 
     masked = [secret for secret in secrets if secret]
 
-    def _mask(text: str) -> str:
+    def _mask(text: str, mask_keylike: bool = True) -> str:
         for secret in masked:
             text = text.replace(secret, REDACTED)
-        return APIKEY_LIKE.sub(REDACTED, text)
+        return APIKEY_LIKE.sub(REDACTED, text) if mask_keylike else text
 
     def _walk(item: typing.Any) -> typing.Any:
         if isinstance(item, dict):
-            return {
-                key: _mask(strip_query(entry))
-                if str(key).lower() == "url" and isinstance(entry, str)
-                else _walk(entry)
-                for key, entry in item.items()
-            }
+            walked = {}
+            for key, entry in item.items():
+                name = str(key).lower()
+                if name in ARTIFACT_ID_KEYS and isinstance(entry, str):
+                    walked[key] = _mask(entry, mask_keylike=False)
+                elif name == "url" and isinstance(entry, str):
+                    walked[key] = _mask(strip_query(entry))
+                else:
+                    walked[key] = _walk(entry)
+            return walked
         if isinstance(item, (list, tuple)):
             return [_walk(entry) for entry in item]
         if isinstance(item, str):
@@ -578,12 +595,19 @@ class Session:
         test: str,
         tracking_number: typing.Optional[str] = None,
         booking_id: typing.Optional[str] = None,
+        print_id: typing.Optional[str] = None,
     ) -> None:
+        """Append the segment's ledger entry, printId included when allocated.
+
+        The by-id endpoints resolve printIds, so the ledger is where a
+        booking's printId must survive even when no segment reads it back.
+        """
         entry = dict(
             segment=segment,
             test=test,
             tracking_number=tracking_number,
             booking_id=booking_id,
+            print_id=print_id,
             timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
         )
         with (self.capture_dir / "bookings.jsonl").open("a") as log:
