@@ -31,7 +31,7 @@ The README's customs section carries the current behavior.
 
 When both the shipper and the recipient are inside the EU VAT area, the booking carries no CN22, CN23, or customs invoice, the standalone customs document is not fetched, and none of the fail-fast checks below run.
 Callers may therefore attach customs data to every shipment; when they do and the shipment stays inside the EU VAT area, the response carries a warning message with code `customs_omitted_intra_eu` ("Customs data was not sent: the shipment from SE to PL stays within the EU VAT area"), the same code the DHL Freight Sweden connector uses.
-The definition matches the DHL Freight Sweden connector and is implemented connector-locally as `in_eu_vat_area` in `karrio/providers/postnord/units.py`: the SDK's `EUCountry` members plus `GR`, excluding Åland (`AX`, or `FI` 22000–22999), the Canary Islands (`IC`, or `ES` 35000–35999 and 38000–38999), Ceuta (`ES` 51000–51999), Melilla (`ES` 52000–52999), Büsingen (`DE` 78266), Heligoland (`DE` 27498), Mount Athos (`GR` or `EL` 63086), Livigno (`IT` 23041), Campione d'Italia (`IT` 22061), the French overseas departments and collectivities (`GP`, `GF`, `MQ`, `RE`, `YT`, or `FR` 97000–97999 and 98600–98899), and the Faroe Islands and Greenland (`DK` 3800–3999, a `DK` postal code prefixed `FO` or `GL`, or a three-digit `DK` postal code).
+The definition matches the DHL Freight Sweden connector and is implemented connector-locally as `in_eu_vat_area` in `karrio/providers/postnord/units.py`: the SDK's `EUCountry` members plus `GR` and Monaco (`MC`), and Northern Ireland (`GB` postal codes beginning `BT`), excluding Åland (`AX`, or `FI` 22000–22999), the Canary Islands (`IC`, or `ES` 35000–35999 and 38000–38999), Ceuta (`ES` 51000–51999), Melilla (`ES` 52000–52999), Büsingen (`DE` 78266), Heligoland (`DE` 27498), Mount Athos (`GR` or `EL` 63086), Livigno (`IT` 23041), Campione d'Italia (`IT` 22061), the French overseas departments and collectivities (`GP`, `GF`, `MQ`, `RE`, `YT`, or `FR` 97000–97999 and 98600–98899), and the Faroe Islands and Greenland (`DK` 3800–3999, a `DK` postal code prefixed `FO` or `GL`, or a three-digit `DK` postal code).
 A postal code is compared after it is trimmed and upper-cased, a leading country code or territory code (`AX` under `FI`, `FO` and `GL` under `DK`, `IC` and `EA` under `ES`) followed by a hyphen, a space, or, except for `GB`, a digit is removed, and its spaces are dropped, so `FI-22100`, `AX22100`, and `GB BT1 1AA` read as `22100`, `22100`, and `BT11AA`.
 `JE`, `GY`, `IM`, and `BT` are never removed, because they begin United Kingdom postcodes.
 A parcel from Sweden to Mariehamn (`FI` 22100) therefore still carries a customs invoice.
@@ -43,9 +43,9 @@ A parcel from Sweden to Mariehamn (`FI` 22100) therefore still carries a customs
 | `type` | `customs.commercial_invoice`: true sends `COMMERCIAL`, false or omitted sends `PROFORMA`, regardless of `content_type` |
 | `declarationType` | always `invoiceExportDeclaration` |
 | `seller` | shipper: `company_name` (else `person_name`) as `name`, address lines as `streets`, `city`, `postal_code`, `country_code` |
-| `seller.vatNo` | shipper `federal_tax_id` (else `state_tax_id`) |
+| `seller.vatNo` | shipper `federal_tax_id` |
 | `seller.partyIdentification` | connection `customer_number` with `partyIdType` `160` |
-| `seller.eoriNo` | `customs.options.eori_number` |
+| `seller.eoriNo` | `customs.options.eori_number`, else the shipper `state_tax_id` |
 | `buyer` | recipient, mapped like the seller; `vatNo` from the recipient tax id when present |
 | `seller.contacts`, `buyer.contacts` | `person_name` (else `company_name`) as `name`, `phone_number` as `phoneNo`, `email` as `emailAddress` |
 | `voec`, `ioss` | `customs.options.voec_number`, `customs.options.ioss_number` |
@@ -63,7 +63,8 @@ Postal codes are sent as strings, so a Norwegian `0154` keeps its leading zero.
 
 ## Fail-fast errors
 
-These checks run before any request is sent for shipments leaving the EU VAT area, and each failure returns a `SHIPPING_SDK_FIELD_ERROR` message whose details name every missing field at once.
+These checks run before any request is sent for shipments leaving the EU VAT area, and each failure returns a `SHIPPING_SDK_FIELD_ERROR` message.
+The checks run in sequence, so a request can fail on one check before the next is evaluated; the registration-placement check, the line-content check, and the customs invoice field checks each name every offending field at once.
 
 | Condition | Details key | Message |
 |---|---|---|
@@ -73,12 +74,15 @@ These checks run before any request is sent for shipments leaving the EU VAT are
 | Shipper or recipient without phone number | `shipper.phone_number` / `recipient.phone_number` | contact phone number is required for a PostNord customs invoice |
 | Commodity without HS code | `customs.commodities[<i>].hs_code` | HS tariff number is required for a PostNord customs invoice line |
 | Commodity without origin country | `customs.commodities[<i>].origin_country` | country of origin is required for a PostNord customs invoice line |
-| CN22 without any of EORI, VOEC, or IOSS | `customs.options` | a CN22 declaration requires at least one of eori_number, voec_number, or ioss_number |
-| CN22 with more than 13 commodities | `customs.commodities` | customs.commodities exceeds the 13-line customs declaration limit |
+| Commodity without title and description (CN22, CN23, and customs invoice) | `customs.commodities[<i>].title` | PostNord requires a title or description for each customs line |
+| CN22 or CN23 without any of EORI, VOEC, or IOSS and without a shipper `state_tax_id` | `customs.options` | a customs declaration requires at least one of eori_number, voec_number, or ioss_number, or a shipper state_tax_id to use as the EORI |
+| CN22 or CN23 with more than 13 commodities | `customs.commodities` | customs.commodities exceeds the 13-line customs declaration limit |
 | Registration numbers under shipment `options` | `options.<key>` | customs registration number; send it under customs.options |
 
-The CN22 registration rule mirrors PostNord's rejection `SACUS-BR-24062502`.
+The CN22 and CN23 registration rule mirrors PostNord's rejection `SACUS-BR-24062502`.
 It is not applied to customs invoices, because the sandbox accepted a parcel customs invoice without registration numbers; the production probe confirmed the same (see `../sandbox/customs-invoice-live-verification.md`).
+
+Ported-note update (2026-10-19): corrected claims that did not match the code when the note was ported: the EU VAT area admits Monaco and Northern Ireland, `seller.vatNo` takes the shipper `federal_tax_id` only, `seller.eoriNo` falls back to the shipper `state_tax_id`, the registration and 13-line checks apply to CN22 and CN23 and a shipper `state_tax_id` satisfies the registration check, the line-content check was missing, and the checks run in sequence rather than reporting every missing field at once.
 
 ## Composed customs invoice document
 
