@@ -1,0 +1,123 @@
+{
+ "generator": "sandbox_tests/postnord/evidence.py",
+ "probe_note": "docs/notes/sandbox/cn23-composition-sandbox-probe.md",
+ "capture_root": "karrio-postnord/sandbox/ below the XDG state root (outside the repository)",
+ "redaction_policy": "byte-identical copies of the captured evidence-of-record files; the sandbox customer number, printIds, bookingIds, item ids, the dummy EORI SE5561234711, and applicationId 7351 are artifact values the repo carve-out lets stand; the only secret is the 32-character apikey, which traveled as a query parameter already stripped at capture time — the build fails on any 32-character alphanumeric run the harness redactor's exemptions do not explain, and a PDF's trailer /ID document instance ids are the one binary exception",
+ "fixtures": [
+  {
+   "fixture": "p1-cn23-gateway.response.json",
+   "kind": "response.parsed",
+   "segment": "p1_cn23_gateway",
+   "source_run": "20261019T120300Z",
+   "source_file": "001-p1_cn23_gateway.response.parsed.json",
+   "source_path": "20261019T120300Z/001-p1_cn23_gateway.response.parsed.json",
+   "source_sha256": "7cb296174b6460f6feac5d6ea77922bfa1e2e05887dddbf32cbdea92553b9489",
+   "sha256": "7cb296174b6460f6feac5d6ea77922bfa1e2e05887dddbf32cbdea92553b9489",
+   "byte_identical": true,
+   "description": "91 SE to AL booked through the connector with the mapper-built customsDeclarationCN23: accepted, bookingId and item id allocated, printoutComposition {cn23: 1, label: 1}, and the two SAO-HR-25060301 phone/sms sanitizations under handlingResponse.",
+   "notes": "captured before the printId-retention fix (33d085f): the printId fields hold the <redacted> sentinel and the printout digest list was masked by the pre-fix apikey heuristic (closed for later captures by 32ce7ec); P1's real printId was never retained anywhere and is unrecoverable, so the fixture keeps the sentinel."
+  },
+  {
+   "fixture": "p1-cn23-gateway.printout01.pdf",
+   "kind": "printout",
+   "segment": "p1_cn23_gateway",
+   "source_run": "20261019T120300Z",
+   "source_file": "001-p1_cn23_gateway.printout01.pdf",
+   "source_path": "20261019T120300Z/001-p1_cn23_gateway.printout01.pdf",
+   "source_sha256": "0b5e7ae9ad4ad90c52554c824ca5a6bb14bc78d64ac31314e4a586b625e65e66",
+   "sha256": "0b5e7ae9ad4ad90c52554c824ca5a6bb14bc78d64ac31314e4a586b625e65e66",
+   "byte_identical": true,
+   "description": "the composed printout of the CN23 booking: one two-page A4 PDF, page 1 the International Parcel label, page 2 the CN23 customs declaration; the first CN23-composed capture in this project or the fork, and the candidate source for deriving CN23 stamping seeds.",
+   "notes": null,
+   "pages": 2,
+   "page_size_pt": [
+    595.27563,
+    841.8898
+   ]
+  },
+  {
+   "fixture": "p2-invoice-gateway.response.json",
+   "kind": "response.parsed",
+   "segment": "p2_invoice_gateway",
+   "source_run": "20261019T120356Z",
+   "source_file": "001-p2_invoice_gateway.response.parsed.json",
+   "source_path": "20261019T120356Z/001-p2_invoice_gateway.response.parsed.json",
+   "source_sha256": "433a1b35205e568e1987fab9f75193e33b807e7c0d55b4f1a9ed8b144e60537a",
+   "sha256": "433a1b35205e568e1987fab9f75193e33b807e7c0d55b4f1a9ed8b144e60537a",
+   "byte_identical": true,
+   "description": "18 SE to AL commercial customs-invoice booking rejected with SAI-BR-24111201: id allocation precedes customs consideration, so the invoice branch cannot be exercised on this lane.",
+   "notes": "the fault explanation carries the sandbox customer number, an artifact value the repo carve-out lets stand."
+  },
+  {
+   "fixture": "p3-no-customs-raw-18.response.json",
+   "kind": "response.parsed",
+   "segment": "p3_no_customs_raw-18",
+   "source_run": "20261019T120422Z",
+   "source_file": "001-p3_no_customs_raw-18.response.parsed.json",
+   "source_path": "20261019T120422Z/001-p3_no_customs_raw-18.response.parsed.json",
+   "source_sha256": "20c60389eca778565cb80ebd0e89820373ef52aa7762d8fd0530be64db86d6b6",
+   "sha256": "20c60389eca778565cb80ebd0e89820373ef52aa7762d8fd0530be64db86d6b6",
+   "byte_identical": true,
+   "description": "raw minimal 18 booking with no customs and no application object: the same SAI-BR-24111201 allocation fault as p2.",
+   "notes": null
+  },
+  {
+   "fixture": "p3-no-customs-raw-91.response.json",
+   "kind": "response.parsed",
+   "segment": "p3_no_customs_raw-91",
+   "source_run": "20261019T120422Z",
+   "source_file": "003-p3_no_customs_raw-91.response.parsed.json",
+   "source_path": "20261019T120422Z/003-p3_no_customs_raw-91.response.parsed.json",
+   "source_sha256": "28ddc3fb95c70d203fc4479d2a6cf42ead3739917142648ab6f53c1f14f225c2",
+   "sha256": "28ddc3fb95c70d203fc4479d2a6cf42ead3739917142648ab6f53c1f14f225c2",
+   "byte_identical": true,
+   "description": "raw minimal 91 booking with no customs and no application object: rejected with SACUS-BR-24100901 demanding an applicationId, the customs-linkage gate with neither linkage present.",
+   "notes": null
+  },
+  {
+   "fixture": "p5-no-customs-with-application-raw.response.json",
+   "kind": "response.parsed",
+   "segment": "p5_no_customs_with_application_raw",
+   "source_run": "20261019T121021Z",
+   "source_file": "001-p5_no_customs_with_application_raw.response.parsed.json",
+   "source_path": "20261019T121021Z/001-p5_no_customs_with_application_raw.response.parsed.json",
+   "source_sha256": "32dcd1c61e5330274f4c9f73fea39cdf73a68aacdefdecdf28a7decc4a5be288",
+   "sha256": "32dcd1c61e5330274f4c9f73fea39cdf73a68aacdefdecdf28a7decc4a5be288",
+   "byte_identical": true,
+   "description": "the p3-91 body unchanged plus the top-level application object carrying the configured four-digit application id: accepted, printoutComposition {label: 1} with every customs kind at 0.",
+   "notes": "captured after the printId fix (33d085f), so both printId fields are byte-real; the digest list was still masked (32ce7ec postdates the round)."
+  },
+  {
+   "fixture": "p5-no-customs-with-application-raw.printout01.pdf",
+   "kind": "printout",
+   "segment": "p5_no_customs_with_application_raw",
+   "source_run": "20261019T121021Z",
+   "source_file": "001-p5_no_customs_with_application_raw.printout01.pdf",
+   "source_path": "20261019T121021Z/001-p5_no_customs_with_application_raw.printout01.pdf",
+   "source_sha256": "04ecd390123e80b5cda907a91317bc708f74a489fd28d2223074196d3fedc6dd",
+   "sha256": "04ecd390123e80b5cda907a91317bc708f74a489fd28d2223074196d3fedc6dd",
+   "byte_identical": true,
+   "description": "the bare one-page A4 label of the application-linked booking: with no customs declaration received, definePrintout=ALL prints no blank customs form.",
+   "notes": null,
+   "pages": 1,
+   "page_size_pt": [
+    595.27563,
+    841.8898
+   ]
+  },
+  {
+   "fixture": "p4-byid-fetch-raw.response.json",
+   "kind": "response.parsed",
+   "segment": "p4_byid_fetch_raw",
+   "source_run": "20261019T121054Z",
+   "source_file": "001-p4_byid_fetch_raw.response.parsed.json",
+   "source_path": "20261019T121054Z/001-p4_byid_fetch_raw.response.parsed.json",
+   "source_sha256": "fc77f529fbd2ee1aaa12b6014abd3fbfb034adaa2727c656461fb3600ed86155",
+   "sha256": "fc77f529fbd2ee1aaa12b6014abd3fbfb034adaa2727c656461fb3600ed86155",
+   "byte_identical": true,
+   "description": "HTTP 200 with per-id FAIL 'id not found' from the onlyCustomsDeclarations by-id fetch.",
+   "notes": "VOID as evidence: the fetch keyed on the pre-fix <redacted> sentinel the p1 capture held, never a real printId, so the recorded answer is our artifact, not PostNord behavior; no claim about the by-id endpoint rests on it.",
+   "void": true
+  }
+ ]
+}

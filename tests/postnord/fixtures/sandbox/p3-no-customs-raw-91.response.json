@@ -1,0 +1,15 @@
+{
+ "transport": "response",
+ "http_status": 400,
+ "body": {
+  "message": "General client indata error",
+  "compositeFault": {
+   "faults": [
+    {
+     "explanationText": "ApplicationId is invalid, should be 4 digit integer",
+     "faultCode": "SACUS-BR-24100901"
+    }
+   ]
+  }
+ }
+}

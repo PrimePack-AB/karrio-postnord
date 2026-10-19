@@ -1,0 +1,15 @@
+{
+ "transport": "response",
+ "http_status": 400,
+ "body": {
+  "message": "General client indata error",
+  "compositeFault": {
+   "faults": [
+    {
+     "explanationText": "Unable to allocate id for this basicServiceCode: 18, from country: SE, to country: AL and customer number: 20000000",
+     "faultCode": "SAI-BR-24111201"
+    }
+   ]
+  }
+ }
+}
