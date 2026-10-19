@@ -48,3 +48,5 @@ A standalone 91 CN22 V2 from the opt-in fetch would still resolve the lone `cn22
 Whether 91 should declare a CN23 rather than a CN22 was, at port time, a separate connector question outside that change; if the connector switches, PostNord will presumably print a different form, which the D8 markers and seed would not recognise, so the booking check would warn again until a new capture adds its markers and geometry.
 
 Ported-note update (2026-10-13): that question has since been resolved — the connector books a CN23 for 91 unconditionally, and 91 bookings' documents pass through unverified pending a capture of what PostNord composes for a CN23 booking (see the README's customs section).
+
+Ported-note update (2026-10-19): a test-mode sandbox capture of a 91 CN23 booking now exists ([cn23-composition-sandbox-probe.md](cn23-composition-sandbox-probe.md)), and the connector verifies 91 labels on PDF against CN23 page-text markers seeded from it, with a PDF-only `label_cn23` signature seed; ZPL 91 labels skip the content check because no ZPL CN23 printout has been captured (see the README's customs section).
