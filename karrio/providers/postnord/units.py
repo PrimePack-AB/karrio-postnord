@@ -358,6 +358,10 @@ NON_EU_VAT_POSTAL_RANGES: typing.Tuple[typing.Tuple[str, int, int], ...] = (
     ("GR", 63086, 63086),  # Mount Athos
     ("IT", 23041, 23041),  # Livigno
     ("IT", 22061, 22061),  # Campione d'Italia
+    ("FR", 97000, 97999),  # French overseas departments and collectivities
+    ("DK", 3800, 3999),  # Faroe Islands and Greenland
+    ("FR", 98600, 98899),  # Wallis and Futuna, French Polynesia, New Caledonia
+    ("EL", 63086, 63086),  # Mount Athos under Greece's VAT prefix
 )
 EU_VAT_POSTAL_PREFIXES: typing.Tuple[typing.Tuple[str, str], ...] = (
     ("GB", "BT"),  # Northern Ireland

@@ -28,7 +28,7 @@
 - The vendored specs in vendor/ are a 2026-09 snapshot; they can drift from the live API. When PostNord publishes a new spec version, re-vendor deliberately and note the change — schema regeneration and spec-cited behavior in notes should be reconciled against it
 
 ## Code map
-- karrio/providers/postnord/units.py — service catalog (32 basic service codes), `DEFAULT_SERVICES` rate-sheet seed, `SERVICE_AVAILABILITY` + `is_service_available` (offer_* letter gates, Z12 issuer rule, fail-closed), `LETTER_SERVICES`, `customs_structure` (CN22/CN23/invoice split), `in_eu_vat_area` (Monaco in; Åland/Canary/Ceuta/Melilla/Büsingen/Heligoland/Mount Athos/Livigno/Campione out; NI via GB-BT prefix), `TrackingStatus` (T&T v7 mapping), notification option enums
+- karrio/providers/postnord/units.py — service catalog (32 basic service codes), `DEFAULT_SERVICES` rate-sheet seed, `SERVICE_AVAILABILITY` + `is_service_available` (offer_* letter gates, Z12 issuer rule, fail-closed), `LETTER_SERVICES`, `customs_structure` (CN22/CN23/invoice split), `in_eu_vat_area` (Monaco in; Åland/Canary/Ceuta/Melilla/Büsingen/Heligoland/Mount Athos (GR and EL)/Livigno/Campione/FR 97xxx and 986xx–988xx/DK 3800–3999 out; NI via GB-BT prefix), `TrackingStatus` (T&T v7 mapping), notification option enums
 - karrio/providers/postnord/shipment/create.py — booking build: customs builders (`_customs_declaration`, `_customs_invoice`), fail-fast customs checks, printout normalization (base64 vs raw ZPL), composed-label verification via stamping.py
 - karrio/providers/postnord/stamping.py — `DOCUMENT_SECTIONS` markers and seed geometries for the SDK customs classifier
 - karrio/providers/postnord/customs.py — post-booking declaration proxy (digital + PDF variant)

@@ -2976,6 +2976,34 @@ class TestPostNordEUVATArea(unittest.TestCase):
                     expected,
                 )
 
+    def test_in_eu_vat_area_range_edges(self):
+        cases = [
+            ("FR", "96999", True),
+            ("FR", "97000", False),
+            ("FR", "97999", False),
+            ("FR", "98599", True),
+            ("FR", "98600", False),
+            ("FR", "98899", False),
+            ("FR", "98900", True),
+            ("DK", "3799", True),
+            ("DK", "3800", False),
+            ("DK", "3999", False),
+            ("DK", "4000", True),
+            ("EL", "63085", True),
+            ("EL", "63086", False),
+            ("EL", "630 86", False),
+            ("EL", "63087", True),
+            ("GR", "63085", True),
+            ("GR", "63086", False),
+            ("GR", "63087", True),
+        ]
+        for country_code, postal_code, expected in cases:
+            with self.subTest(country_code=country_code, postal_code=postal_code):
+                self.assertEqual(
+                    provider_units.in_eu_vat_area(country_code, postal_code),
+                    expected,
+                )
+
     def test_intra_eu_parcel_omits_customs_and_warns(self):
         payload = {
             **CustomsInvoiceShipmentPayload,
