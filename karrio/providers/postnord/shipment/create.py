@@ -26,10 +26,16 @@ into the booking printout in both formats, which is returned unchanged as
 ``docs.label``. The parser verifies that composition with the SDK customs
 classifier and PostNord's ``DOCUMENT_SECTIONS``; a mismatch is a
 ``POSTNORD_UNEXPECTED_LABEL_COMPOSITION`` warning, never a booking failure.
-CN23-structured bookings are not held to that composition: whether PostNord
-composes the CN23 into the label is a pending live verification, so their
-documents pass through unstamped rather than being measured against the
-CN22 seeds.
+CN23-structured bookings are verified the same way on PDF labels, against
+the CN23 page-text markers seeded from the committed test-mode capture
+(the SDK classifier's composition vocabulary is closed to the CN22, so
+that check reads the classifier's matched kinds connector-side); a ZPL
+label skips it, no ZPL CN23 having been captured. Customs-invoice labels
+carry no declared markers and are never content-verified. Every customs
+branch instead attests the booking response's declared
+``printoutComposition`` against the kinds the branch composes, warning
+with ``POSTNORD_PRINTOUT_COMPOSITION_MISMATCH`` on a disagreement and
+staying silent when PostNord declares no composition.
 """
 
 import base64
@@ -81,26 +87,68 @@ def parse_shipment_response(
             _customs_omitted_message(_response.ctx["customs_omitted"], settings)
         )
 
-    composition_message = lib.identity(
-        _label_composition_message(shipment, settings)
-        if shipment is not None and _expects_combined_label(_response.ctx)
-        else None
-    )
-    if composition_message is not None:
-        messages.append(composition_message)
+    messages += _customs_composition_messages(shipment, _response.ctx, settings)
 
     return shipment, messages
 
 
-def _expects_combined_label(ctx: dict) -> bool:
-    """Whether PostNord composes a CN22 into this booking's label."""
-    return bool(ctx.get("customs_declared")) and (
-        provider_units.customs_structure(ctx.get("basic_service_code"))
-        == provider_units.CustomsStructure.cn22
-    )
+def _customs_composition_messages(
+    shipment: typing.Optional[models.ShipmentDetails],
+    ctx: dict,
+    settings: provider_utils.Settings,
+) -> typing.List[models.Message]:
+    """The customs composition warnings for a booked shipment, if any.
+
+    Two warning-level checks run for a booking that declared customs, keyed
+    on its customs branch: the returned label's content is verified against
+    the branch's composed document, and PostNord's declared
+    ``printout_composition`` is attested against the kinds the branch
+    composes. Neither ever fails a booking, and each stays silent without
+    its evidence.
+    """
+    if shipment is None or not ctx.get("customs_declared"):
+        return []
+
+    structure = provider_units.customs_structure(ctx.get("basic_service_code"))
+    return [
+        message
+        for message in (
+            _label_composition_message(shipment, structure, settings),
+            _composition_attestation_message(shipment, structure, settings),
+        )
+        if message is not None
+    ]
 
 
 def _label_composition_message(
+    shipment: models.ShipmentDetails,
+    structure: provider_units.CustomsStructure,
+    settings: provider_utils.Settings,
+) -> typing.Optional[models.Message]:
+    """Verify the booking label is the branch's composed document, if backed.
+
+    The CN22 composes into both formats, so every CN22 label is
+    content-verified. The CN23 verification is backed only by the committed
+    test-mode PDF capture, so it reads the classifier's matched kinds
+    connector-side (the SDK classifier's composition vocabulary is closed
+    to the CN22: its declaration kind and doc types are cn22 constants, so
+    a CN23 printout always classifies as carrying no declaration) and a
+    ZPL label deliberately skips it — no ZPL CN23 printout has been
+    captured to seed markers from. The customs invoice declares no section
+    markers in any format, so its label is never content-verified.
+    """
+    if structure == provider_units.CustomsStructure.cn22:
+        return _cn22_label_composition_message(shipment, settings)
+
+    if structure == provider_units.CustomsStructure.cn23:
+        if (shipment.label_type or "").upper() == provider_units.LabelType.ZPL.value:
+            return None
+        return _cn23_label_composition_message(shipment, settings)
+
+    return None
+
+
+def _cn22_label_composition_message(
     shipment: models.ShipmentDetails,
     settings: provider_utils.Settings,
 ) -> typing.Optional[models.Message]:
@@ -139,6 +187,89 @@ def _label_composition_message(
         message=(
             "The label was expected to be the shipping label composed with a "
             f"CN22 ({expected.value}) but {finding}"
+        ),
+    )
+
+
+def _cn23_label_composition_message(
+    shipment: models.ShipmentDetails,
+    settings: provider_utils.Settings,
+) -> typing.Optional[models.Message]:
+    """Verify the booking label is the shipping label composed with a CN23.
+
+    The label is classified with PostNord's declared document sections and
+    the CN23 page-text markers seeded from the committed test-mode capture;
+    ``kinds`` names every section whose markers matched, so the composition
+    is the expected one when both the cn23 and label kinds are present. Any
+    other kinds, or a booking returning no label data, yield a warning and
+    leave the label unchanged, since the booking is already made.
+    """
+    expected = {"cn23", "label"}
+    if not shipment.docs.label:
+        finding = "no label data was returned"
+    else:
+        try:
+            classification = lib.classify_customs_composition(
+                models.ShippingDocument(
+                    category="label",
+                    format=shipment.label_type,
+                    base64=shipment.docs.label,
+                ),
+                sections=provider_stamping.DOCUMENT_SECTIONS,
+            )
+        except ValueError as classification_error:
+            finding = f"could not be classified: {classification_error}"
+        else:
+            if expected <= set(classification.kinds):
+                return None
+            finding = (
+                "the document text was classified as kinds "
+                f"[{', '.join(classification.kinds) or 'none'}], not "
+                f"[{', '.join(sorted(expected))}]"
+            )
+
+    return models.Message(
+        carrier_name=settings.carrier_name,
+        carrier_id=settings.carrier_id,
+        code=provider_units.POSTNORD_UNEXPECTED_LABEL_COMPOSITION,
+        level="warning",
+        message=(
+            "The label was expected to be the shipping label composed with a "
+            f"CN23 but {finding}"
+        ),
+    )
+
+
+def _composition_attestation_message(
+    shipment: models.ShipmentDetails,
+    structure: provider_units.CustomsStructure,
+    settings: provider_utils.Settings,
+) -> typing.Optional[models.Message]:
+    """Attest the booking response's declared composition against its branch.
+
+    ``meta.printout_composition`` is what PostNord said it composed into the
+    label printout, and each customs branch composes a known kind set
+    (``COMPOSED_KINDS_BY_CUSTOMS_STRUCTURE``); a declared set that disagrees
+    warns. An absent or empty declaration stays silent: the field is
+    evidence the server spoke, and its silence is not a mismatch.
+    """
+    declared = sorted((shipment.meta or {}).get("printout_composition") or [])
+    if not declared:
+        return None
+
+    expected = sorted(provider_units.COMPOSED_KINDS_BY_CUSTOMS_STRUCTURE[structure])
+    if declared == expected:
+        return None
+
+    return models.Message(
+        carrier_name=settings.carrier_name,
+        carrier_id=settings.carrier_id,
+        code=provider_units.POSTNORD_PRINTOUT_COMPOSITION_MISMATCH,
+        level="warning",
+        message=(
+            "PostNord declared the booking printout as composed of "
+            f"[{', '.join(declared)}] but a {structure.value} booking composes "
+            f"[{', '.join(expected)}]"
         ),
     )
 

@@ -400,6 +400,10 @@ def to_flag(value: typing.Any) -> bool:
 # shipping label composed with the CN22.
 POSTNORD_UNEXPECTED_LABEL_COMPOSITION = "postnord_unexpected_label_composition"
 
+# Warning for a customs booking whose server-declared printoutComposition
+# disagrees with the document kinds its customs branch composes.
+POSTNORD_PRINTOUT_COMPOSITION_MISMATCH = "postnord_printout_composition_mismatch"
+
 
 def in_eu_vat_area(
     country_code: typing.Optional[str],
@@ -501,6 +505,20 @@ def customs_structure(basic_service_code: str) -> CustomsStructure:
         return CustomsStructure.cn23
 
     return CustomsStructure.customs_invoice
+
+
+# The document kinds PostNord composes into a booking's label printout per
+# customs branch, the vocabulary of the printoutComposition the booking
+# response declares (captures: {label, cn22} on the letter bookings,
+# {label, cn23} on the 2026-10-19 test-mode International Parcel booking,
+# {label, customsInvoice} on the 2026-09-25 parcel booking).
+COMPOSED_KINDS_BY_CUSTOMS_STRUCTURE: typing.Mapping[
+    CustomsStructure, typing.FrozenSet[str]
+] = {
+    CustomsStructure.cn22: frozenset({"label", "cn22"}),
+    CustomsStructure.cn23: frozenset({"label", "cn23"}),
+    CustomsStructure.customs_invoice: frozenset({"label", "customsInvoice"}),
+}
 
 
 def enforce_customs_declaration_lines(

@@ -175,6 +175,7 @@ class TestPostnordDocumentSections(unittest.TestCase):
                 },
                 "PDF": {
                     "cn22": PDF_CN22_TEXT,
+                    "cn23": ("Customs Declaration", "CN23"),
                     "label": lib.AnyOf(
                         PDF_LABEL_TEXT,
                         PDF_TRACKED_LETTER_TEXT,

@@ -1705,7 +1705,7 @@ class TestPostNordLabelComposition(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
 
-    def test_unexpected_label_composition_code_is_unique(self):
+    def test_composition_warning_codes_are_unique(self):
         other_codes = {
             provider_units.CUSTOMS_OMITTED_INTRA_EU,
             "ENTRY_CODE_LENGTH",
@@ -1719,8 +1719,15 @@ class TestPostNordLabelComposition(unittest.TestCase):
             provider_units.POSTNORD_UNEXPECTED_LABEL_COMPOSITION,
             "postnord_unexpected_label_composition",
         )
+        self.assertEqual(
+            provider_units.POSTNORD_PRINTOUT_COMPOSITION_MISMATCH,
+            "postnord_printout_composition_mismatch",
+        )
         self.assertNotIn(
             provider_units.POSTNORD_UNEXPECTED_LABEL_COMPOSITION, other_codes
+        )
+        self.assertNotIn(
+            provider_units.POSTNORD_PRINTOUT_COMPOSITION_MISMATCH, other_codes
         )
 
     def _book(self, response: str, payload: dict = None, label_type: str = "PDF"):
@@ -1761,24 +1768,18 @@ class TestPostNordLabelComposition(unittest.TestCase):
         self.assertEqual(details.docs.label, TwoPageLabelPDF)
         self.assertEqual(details.meta["printout_composition"], ["cn22", "label"])
 
-    def test_international_parcel_labels_are_not_composition_verified(self):
-        # A CN23 booking is not held to a label+CN22 composition: the label
-        # passes through unchanged with no verification message. The
-        # captured responses predate the CN23 switch and compose a CN22;
-        # whether PostNord composes a CN23 into the label is verified in the
-        # phase-2 sandbox capture, which also decides any CN23 stamping.
+    def test_international_parcel_cn23_labels_pass_verification(self):
+        # The committed test-mode capture composes the label and the CN23:
+        # the PDF verifies its content against the CN23 page-text markers,
+        # and both formats attest the declared composition in silence. The
+        # ZPL content check skips the format (no ZPL CN23 capture exists).
         cases = [
+            ("pdf", CN23BookingResponse, "PDF", CN23LabelPDF),
             (
                 "zpl",
-                InternationalParcelBookingZPLResponse,
+                CN23BookingZPLResponse,
                 "ZPL",
-                _b64(InternationalParcelLabelZPL),
-            ),
-            (
-                "pdf",
-                InternationalParcelBookingResponse,
-                "PDF",
-                InternationalParcelLabelPDF,
+                _b64(InternationalParcelParcelLabelZPL),
             ),
         ]
         for name, response, label_type, label in cases:
@@ -1790,21 +1791,145 @@ class TestPostNordLabelComposition(unittest.TestCase):
                 )
                 self.assertListEqual(lib.to_dict(messages), [])
                 self.assertEqual(details.docs.label, label)
-                self.assertEqual(
-                    details.meta["printout_composition"], ["cn22", "label"]
-                )
+                self.assertEqual(details.meta["printout_composition"], ["cn23", "label"])
 
-    def test_international_parcel_label_without_cn22_format_is_not_verified(self):
-        # A CN23 booking whose label is not a CN22 composition stays silent:
-        # the CN22 composition check no longer applies, so documents pass
-        # through unstamped rather than being measured against CN22 seeds.
+    def test_international_parcel_zpl_content_check_skips_without_evidence(self):
+        # A CN23 ZPL booking with no declared composition reports nothing:
+        # the content check deliberately skips the uncaptured format and the
+        # attestation stays silent when PostNord declares no composition.
         details, messages = self._book(
-            _customs_booking_zpl(InternationalParcelParcelLabelZPL),
+            CN23BookingNoCompositionZPLResponse,
             payload=InternationalParcelCustomsPayload,
             label_type="ZPL",
         )
         self.assertEqual(details.docs.label, _b64(InternationalParcelParcelLabelZPL))
+        self.assertNotIn("printout_composition", details.meta)
         self.assertListEqual(lib.to_dict(messages), [])
+
+    def test_pre_cn23_international_parcel_captures_now_warn(self):
+        # The 2026-09-28 91 captures predate the CN23 switch and compose a
+        # CN22: the PDF content check warns (the CN23 markers are absent)
+        # and both formats attest a declared composition that disagrees
+        # with the cn23 branch. The bookings still succeed with their labels.
+        cases = [
+            (
+                "pdf",
+                InternationalParcelBookingResponse,
+                "PDF",
+                [
+                    (
+                        "postnord_unexpected_label_composition",
+                        "The label was expected to be the shipping label "
+                        "composed with a CN23 but the document text was "
+                        "classified as kinds [cn22, label], not [cn23, label]",
+                    ),
+                    (
+                        "postnord_printout_composition_mismatch",
+                        "PostNord declared the booking printout as composed of "
+                        "[cn22, label] but a customsDeclarationCN23 booking "
+                        "composes [cn23, label]",
+                    ),
+                ],
+            ),
+            (
+                "zpl",
+                InternationalParcelBookingZPLResponse,
+                "ZPL",
+                [
+                    (
+                        "postnord_printout_composition_mismatch",
+                        "PostNord declared the booking printout as composed of "
+                        "[cn22, label] but a customsDeclarationCN23 booking "
+                        "composes [cn23, label]",
+                    ),
+                ],
+            ),
+        ]
+        for name, response, label_type, expected in cases:
+            with self.subTest(case=name):
+                details, messages = self._book(
+                    response,
+                    payload=InternationalParcelCustomsPayload,
+                    label_type=label_type,
+                )
+                self.assertIsNotNone(details)
+                self.assertEqual(
+                    [(message.code, message.message) for message in messages],
+                    expected,
+                )
+
+    def _book_sequence(self, responses: list, payload: dict, label_type: str = "PDF"):
+        with patch("karrio.mappers.postnord.proxy.lib.request") as mock:
+            mock.side_effect = responses
+            details, messages = (
+                karrio.Shipment.create(
+                    models.ShipmentRequest(**{**payload, "label_type": label_type})
+                )
+                .from_(gateway)
+                .parse()
+            )
+        return details, messages
+
+    def test_printout_composition_attestation_per_branch(self):
+        # Matching declarations stay silent per branch, mismatches warn, and
+        # an absent declaration is silent: the field is evidence the server
+        # spoke, so its silence is not a mismatch. Customs-invoice bookings
+        # fetch their standalone document unconditionally, so their cases
+        # carry the by-id response too.
+        cn22_mismatch = CombinedBookingResponse.replace(
+            '"label": 1, "cn22": 1', '"label": 1, "customsInvoice": 1'
+        )
+        invoice_mismatch = CustomsInvoiceBookingResponse.replace(
+            '"label": 1, "customsInvoice": 1', '"label": 1, "cn22": 1'
+        )
+        no_composition = CombinedBookingResponse.replace(
+            ',\n    "printoutComposition": {"label": 1, "cn22": 1}\n', "\n"
+        )
+        cases = [
+            # (name, payload, responses, expected composition, expected codes)
+            (
+                "cn22_match",
+                CustomsShipmentPayload,
+                [CombinedBookingResponse],
+                ["cn22", "label"],
+                [],
+            ),
+            (
+                "cn22_mismatch",
+                CustomsShipmentPayload,
+                [cn22_mismatch],
+                ["customsInvoice", "label"],
+                ["postnord_printout_composition_mismatch"],
+            ),
+            ("cn22_absent", CustomsShipmentPayload, [no_composition], None, []),
+            (
+                "cn23_match",
+                InternationalParcelCustomsPayload,
+                [CN23BookingResponse],
+                ["cn23", "label"],
+                [],
+            ),
+            (
+                "invoice_match",
+                CustomsInvoiceShipmentPayload,
+                [CustomsInvoiceBookingResponse, CustomsInvoicePrintoutsResponse],
+                ["customsInvoice", "label"],
+                [],
+            ),
+            (
+                "invoice_mismatch",
+                CustomsInvoiceShipmentPayload,
+                [invoice_mismatch, CustomsInvoicePrintoutsResponse],
+                ["cn22", "label"],
+                ["postnord_printout_composition_mismatch"],
+            ),
+        ]
+        for name, payload, responses, composition, codes in cases:
+            with self.subTest(case=name):
+                details, messages = self._book_sequence(responses, payload)
+                self.assertIsNotNone(details)
+                self.assertEqual(details.meta.get("printout_composition"), composition)
+                self.assertEqual([message.code for message in messages], codes)
 
     def test_unexpected_label_compositions_warn(self):
         cases = [
@@ -2021,20 +2146,19 @@ class TestPostNordStandaloneCustomsDocument(unittest.TestCase):
         cases = [
             (
                 "PDF",
-                CombinedBookingResponse,
                 CustomsPrintoutsResponse,
                 {"category": "cn22", "format": "PDF", "base64": CustomsPDFData},
             ),
             (
                 "ZPL",
-                CombinedBookingZPLResponse,
                 CustomsPrintoutsZPLResponse,
                 {"category": "cn22", "format": "ZPL", "base64": _b64(CustomsRawZPL)},
             ),
         ]
         for service in self.DECLARATION_SERVICES:
-            for label_type, booking, printouts, document in cases:
+            for label_type, printouts, document in cases:
                 with self.subTest(service=service, label_type=label_type):
+                    booking, _ = DECLARATION_BOOKINGS[service][label_type]
                     mock, details, messages = self._book(
                         service,
                         label_type,
@@ -2057,7 +2181,7 @@ class TestPostNordStandaloneCustomsDocument(unittest.TestCase):
         mock, details, messages = self._book(
             "postnord_postpaket_utrikes",
             "PDF",
-            [CombinedBookingResponse, CustomsPrintoutsResponse],
+            [CN23BookingResponse, CustomsPrintoutsResponse],
             carrier=gateway_with_standalone_customs,
         )
         self.assertEqual(mock.call_count, 2)
@@ -2089,12 +2213,9 @@ class TestPostNordStandaloneCustomsDocument(unittest.TestCase):
                 "customs document retrieval failed: connection reset",
             ),
         ]
-        bookings = [
-            ("PDF", CombinedBookingResponse, CombinedLabelPDF),
-            ("ZPL", CombinedBookingZPLResponse, _b64(CombinedLabelZPL)),
-        ]
         for service in ["postnord_export_letter", "postnord_postpaket_utrikes"]:
-            for label_type, booking, label in bookings:
+            for label_type in ("PDF", "ZPL"):
+                booking, label = DECLARATION_BOOKINGS[service][label_type]
                 for name, failure, code, text in failures:
                     with self.subTest(
                         service=service, label_type=label_type, failure=name
@@ -2117,13 +2238,10 @@ class TestPostNordStandaloneCustomsDocument(unittest.TestCase):
                             [(code, text)],
                         )
 
-    def test_not_opted_in_cn22_services_attach_no_standalone_document(self):
-        cases = [
-            ("PDF", CombinedBookingResponse, CombinedLabelPDF),
-            ("ZPL", CombinedBookingZPLResponse, _b64(CombinedLabelZPL)),
-        ]
+    def test_not_opted_in_declaration_services_attach_no_standalone_document(self):
         for service in self.DECLARATION_SERVICES:
-            for label_type, booking, label in cases:
+            for label_type in ("PDF", "ZPL"):
+                booking, label = DECLARATION_BOOKINGS[service][label_type]
                 with self.subTest(service=service, label_type=label_type):
                     mock, details, messages = self._book(service, label_type, [booking])
                     mock.assert_called_once()
@@ -2131,7 +2249,10 @@ class TestPostNordStandaloneCustomsDocument(unittest.TestCase):
                     self.assertEqual(details.docs.label, label)
                     self.assertEqual(details.docs.extra_documents, [])
                     self.assertEqual(
-                        details.meta["printout_composition"], ["cn22", "label"]
+                        details.meta["printout_composition"],
+                        ["cn23", "label"]
+                        if service == "postnord_postpaket_utrikes"
+                        else ["cn22", "label"],
                     )
 
 
@@ -4476,3 +4597,40 @@ InternationalParcelBookingResponse = _customs_booking_pdf(InternationalParcelLab
 CombinedBookingNoPrintIdResponse = CustomsBookingNoPrintIdResponse.replace(
     '"data": "JVBERi0xLjQK"', f'"data": "{CombinedLabelPDF}"'
 )
+
+# The committed CN23-composition sandbox capture (2026-10-19, P1): a 91
+# SE→AL booking whose two-page A4 PDF composes the parcel label and the
+# CN23, printoutComposition {cn23: 1, label: 1}, replayed as a booking
+# response. No ZPL CN23 printout exists, so the ZPL sibling declares the
+# same attested composition around a plain parcel label: it covers the
+# attestation and the by-id fetch while the content check skips the format.
+CN23LabelPDF = _read_b64("sandbox/p1-cn23-gateway.printout01.pdf")
+CN23BookingResponse = _customs_booking_pdf(CN23LabelPDF).replace(
+    '"label": 1, "cn22": 1', '"label": 1, "cn23": 1'
+)
+CN23BookingZPLResponse = _customs_booking_zpl(InternationalParcelParcelLabelZPL).replace(
+    '"label": 1, "cn22": 1', '"label": 1, "cn23": 1'
+)
+# The ZPL booking with no declared composition: the content check skips the
+# format and the attestation stays silent, so the booking reports nothing.
+CN23BookingNoCompositionZPLResponse = _customs_booking_zpl(
+    InternationalParcelParcelLabelZPL
+).replace(',\n    "printoutComposition": {"label": 1, "cn22": 1}\n', "\n")
+
+# Booking responses and their returned labels per declaration-structured
+# service: the letters compose a CN22, International Parcel the captured
+# CN23 composition (PDF) or its ZPL stand-in.
+DECLARATION_BOOKINGS = {
+    "postnord_export_letter": {
+        "PDF": (CombinedBookingResponse, CombinedLabelPDF),
+        "ZPL": (CombinedBookingZPLResponse, _b64(CombinedLabelZPL)),
+    },
+    "postnord_tracked_letter": {
+        "PDF": (CombinedBookingResponse, CombinedLabelPDF),
+        "ZPL": (CombinedBookingZPLResponse, _b64(CombinedLabelZPL)),
+    },
+    "postnord_postpaket_utrikes": {
+        "PDF": (CN23BookingResponse, CN23LabelPDF),
+        "ZPL": (CN23BookingZPLResponse, _b64(InternationalParcelParcelLabelZPL)),
+    },
+}

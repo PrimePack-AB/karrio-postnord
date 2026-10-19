@@ -109,11 +109,12 @@ def _anchor_pt():
 class TestPostnordStampSeeds(unittest.TestCase):
     def test_plugin_metadata_declares_the_cn22_seeds(self):
         # Resolved through the loaded plugins, exactly as the stamping core
-        # reads them, without importing the connector first.
+        # reads them, without importing the connector first. The registry's
+        # complete key set is pinned in test_label_cn23_stamping.
         seeds = references.collect_providers_data()["postnord"].stamp_seeds
 
         self.assertEqual(
-            set(seeds),
+            {key for key in seeds if "cn22" in key},
             {"cn22/PDF/A4", "cn22/ZPL/*", "label_cn22/PDF/A4", "label_cn22/ZPL/*"},
         )
         self.assertIs(seeds["cn22/PDF/A4"], postnord_stamping.CN22_SEED)
