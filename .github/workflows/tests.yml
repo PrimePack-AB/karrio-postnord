@@ -30,34 +30,6 @@ jobs:
       - name: Install the fork SDK and the connector
         run: pip install -e karrio-sdk/modules/sdk -e .
       - name: Check the SDK provides the document-stamping surface
-        run: |
-          python - <<'EOF'
-          import sys
-          import attr
-          import karrio.lib as lib
-          from karrio.core.metadata import PluginMetadata
-
-          fields = attr.fields_dict(PluginMetadata)
-          missing = [
-              f"PluginMetadata.{name}"
-              for name in ("stamp_seeds", "document_sections")
-              if name not in fields
-          ] + [
-              f"karrio.lib.{name}"
-              for name in (
-                  "StampSeed",
-                  "StampPlacement",
-                  "AnyOf",
-                  "CustomsComposition",
-                  "classify_customs_composition",
-              )
-              if not hasattr(lib, name)
-          ]
-          if missing:
-              sys.exit(
-                  "Joaqim/karrio develop lacks the document-stamping SDK surface "
-                  "this connector needs: " + ", ".join(missing)
-              )
-          EOF
+        run: python scripts/check-sdk-surface.py
       - name: Run the connector test suite
         run: python -m unittest discover -f -s tests
