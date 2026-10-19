@@ -1,0 +1,468 @@
+"""Offline self-tests for the sandbox harness: guards, redaction, one-shot, budget.
+
+Every test here is pure and local: no network, no live credentials, no
+gate. A synthetic apikey exercises the redactor; temporary directories
+exercise the markers, the budget, the capture writer, and the p4 capture
+finder, so the machinery the live segments rely on is verified before any
+probe fires.
+"""
+
+import base64
+import dataclasses
+import datetime
+import json
+import pathlib
+import tempfile
+import typing
+import unittest
+
+from . import harness, payloads
+
+NOW = datetime.datetime(2026, 10, 19, 12, 0, 0, tzinfo=datetime.timezone.utc)
+SYNTHETIC_APIKEY = "a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6"
+
+GATED_ENVIRONMENT = {
+    "POSTNORD_SANDBOX": "1",
+    "POSTNORD_APIKEY": SYNTHETIC_APIKEY,
+    "POSTNORD_CUSTOMER_NUMBER": "12345678",
+    "POSTNORD_EORI": "SE556000123401",
+}
+
+
+def gated_config(**overrides) -> harness.SandboxConfig:
+    return harness.load_config({**GATED_ENVIRONMENT, **overrides}, NOW)
+
+
+def offline_session(state_home: pathlib.Path) -> harness.Session:
+    """A capture-capable session with the gate off, rooted at ``state_home``.
+
+    The disabled config also keeps the transport guard uninstalled, so the
+    self-tests never touch the SDK's network plumbing.
+    """
+    config = gated_config(XDG_STATE_HOME=str(state_home))
+    return harness.Session(dataclasses.replace(config, enabled=False))
+
+
+class TestGate(unittest.TestCase):
+    def test_gate_off_skips(self):
+        config = harness.load_config({}, NOW)
+        self.assertFalse(config.enabled)
+        self.assertEqual(harness.skip_reason(config), "POSTNORD_SANDBOX is not 1")
+        with self.assertRaises(unittest.SkipTest) as skipped:
+            harness._require(config, "p1_cn23_gateway")
+        self.assertIn("POSTNORD_SANDBOX is not 1", str(skipped.exception))
+
+    def test_missing_credentials_skip(self):
+        for missing in ("POSTNORD_APIKEY", "POSTNORD_CUSTOMER_NUMBER", "POSTNORD_EORI"):
+            with self.subTest(variable=missing):
+                environment = dict(GATED_ENVIRONMENT)
+                environment.pop(missing)
+                config = harness.load_config(environment, NOW)
+                self.assertEqual(harness.skip_reason(config), f"{missing} is not set")
+
+    def test_gated_config_runs(self):
+        self.assertIsNone(harness.skip_reason(gated_config()))
+
+
+class TestRefusals(unittest.TestCase):
+    def test_live_key_present_refuses(self):
+        with self.assertRaises(harness.SandboxConfigError) as refused:
+            gated_config(POSTNORD_LIVE_APIKEY="anythingAtAll")
+        self.assertIn("POSTNORD_LIVE_APIKEY", str(refused.exception))
+
+    def test_empty_apikey_refuses(self):
+        with self.assertRaises(harness.SandboxConfigError) as refused:
+            gated_config(POSTNORD_APIKEY="")
+        self.assertIn("POSTNORD_APIKEY is empty", str(refused.exception))
+
+    def test_bad_booking_budget_refuses(self):
+        for value in ("four", "-1"):
+            with self.subTest(value=value):
+                with self.assertRaises(harness.SandboxConfigError):
+                    gated_config(POSTNORD_SANDBOX_MAX_BOOKINGS=value)
+
+    def test_default_booking_budget_is_four(self):
+        self.assertEqual(gated_config().max_bookings, 4)
+
+    def test_booking_budget_override(self):
+        config = gated_config(POSTNORD_SANDBOX_MAX_BOOKINGS="2")
+        self.assertEqual(config.max_bookings, 2)
+
+
+class TestHostGuard(unittest.TestCase):
+    def test_sandbox_origin_accepted(self):
+        for url in (
+            "https://atapi2.postnord.com/rest/shipment/v3/edi/labels/pdf?apikey=x",
+            "https://atapi2.postnord.com/rest/shipment/v3/labels/ids/pdf",
+        ):
+            with self.subTest(url=url):
+                self.assertEqual(harness.check_url(url), url)
+
+    def test_production_host_refused(self):
+        with self.assertRaises(harness.SandboxConfigError):
+            harness.check_url(
+                "https://api2.postnord.com/rest/shipment/v3/edi/labels/pdf"
+            )
+
+    def test_non_postnord_and_lookalike_hosts_refused(self):
+        for url in (
+            "http://atapi2.postnord.com/rest/shipment/v3/edi/labels/pdf",
+            "https://atapi2.postnord.com.evil.example/rest",
+            "https://evil.example/rest/shipment/v3/edi/labels/pdf",
+            "https://tracking.postnord.com/",
+        ):
+            with self.subTest(url=url):
+                with self.assertRaises(harness.SandboxConfigError):
+                    harness.check_url(url)
+
+    def test_booking_body_requires_test_indicator_true(self):
+        path = "https://atapi2.postnord.com/rest/shipment/v3/edi/labels/pdf"
+        harness.check_booking_body(path, json.dumps({"testIndicator": True}))
+        for body in (
+            json.dumps({"testIndicator": False}),
+            json.dumps({"updateIndicator": "Original"}),
+            "not json",
+        ):
+            with self.subTest(body=body):
+                with self.assertRaises(harness.SandboxConfigError):
+                    harness.check_booking_body(path, body)
+
+    def test_non_booking_body_takes_no_test_indicator(self):
+        harness.check_booking_body(
+            "https://atapi2.postnord.com/rest/shipment/v3/labels/ids/pdf",
+            json.dumps([{"id": "123"}]),
+        )
+
+
+class TestRedaction(unittest.TestCase):
+    def test_strip_query_removes_apikey(self):
+        self.assertEqual(
+            harness.strip_query(
+                "https://atapi2.postnord.com/rest/shipment/v3/edi/labels/pdf"
+                "?apikey=SECRET&labelType=small"
+            ),
+            "https://atapi2.postnord.com/rest/shipment/v3/edi/labels/pdf",
+        )
+
+    def test_redact_masks_synthetic_key_and_query(self):
+        artifact = dict(
+            url=(
+                "https://atapi2.postnord.com/rest/shipment/v3/labels/ids/pdf"
+                f"?apikey={SYNTHETIC_APIKEY}&definePrintout=onlyCustomsDeclarations"
+            ),
+            body=dict(deep=[f"prefix {SYNTHETIC_APIKEY} suffix"]),
+        )
+        safe = json.dumps(harness.redact(artifact, [SYNTHETIC_APIKEY]))
+        self.assertNotIn(SYNTHETIC_APIKEY, safe)
+        self.assertNotIn("apikey=", safe)
+        self.assertNotIn("definePrintout", safe)
+        self.assertIn(harness.REDACTED, safe)
+
+    def test_redact_masks_any_32_character_token(self):
+        unknown_key = "z9Y8x7W6v5U4t3S2r1Q0p9O8n7M6l5K4"
+        safe = harness.redact(f"<{unknown_key}>", [])
+        self.assertNotIn(unknown_key, safe)
+        self.assertIn(harness.REDACTED, safe)
+
+    def test_redact_leaves_short_identifiers(self):
+        value = dict(shipmentId="P3-NOCUSTOMS-18", partyId="12345678")
+        self.assertEqual(harness.redact(value, []), value)
+
+
+class TestOneShot(unittest.TestCase):
+    def test_fired_segment_never_refires(self):
+        class _skipped(unittest.TestCase):
+            def runTest(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as directory:
+            session = offline_session(pathlib.Path(directory))
+            marker = "p3_no_customs_raw-18"
+            self.assertFalse(session.oneshot.already_fired(marker))
+            harness.require_fire(_skipped(), session, marker)
+            self.assertTrue(session.oneshot.already_fired(marker))
+            with self.assertRaises(unittest.SkipTest) as skipped:
+                harness.require_fire(_skipped(), session, marker)
+            self.assertIn("already ran once", str(skipped.exception))
+
+    def test_markers_are_per_segment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session = offline_session(pathlib.Path(directory))
+            session.oneshot.fire("p1_cn23_gateway")
+            self.assertFalse(session.oneshot.already_fired("p2_invoice_gateway"))
+
+
+class TestBookingBudget(unittest.TestCase):
+    def test_exhaustion_skips(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session = offline_session(pathlib.Path(directory))
+            session.budget = harness.BookingBudget(0)
+            with self.assertRaises(unittest.SkipTest) as skipped:
+                harness.require_booking(self, session)
+            self.assertIn("booking budget exhausted", str(skipped.exception))
+
+    def test_reserve_counts_before_the_call(self):
+        budget = harness.BookingBudget(1)
+        self.assertTrue(budget.reserve())
+        self.assertEqual(budget.attempts, 1)
+        self.assertFalse(budget.reserve())
+
+
+class TestCaptures(unittest.TestCase):
+    def test_capture_writes_redacted_request_and_parsed_response(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session = offline_session(pathlib.Path(directory))
+            stem = session.next_stem("p1_cn23_gateway")
+            session.write_request(
+                stem,
+                "https://atapi2.postnord.com/rest/shipment/v3/edi/labels/pdf"
+                f"?apikey={SYNTHETIC_APIKEY}",
+                dict(
+                    testIndicator=True,
+                    shipment=[dict(service=dict(basicServiceCode="91"))],
+                ),
+            )
+            label = base64.b64encode(b"%PDF-1.4 sandbox label bytes").decode()
+            body = {
+                "bookingResponse": {"idInformation": [{"status": "OK"}]},
+                "labelPrintout": [
+                    {
+                        "printoutComposition": {"shippingLabel": 1, "cn22orcn23": 1},
+                        "printout": {
+                            "id": 1,
+                            "type": "label",
+                            "labelFormat": "PDF",
+                            "encoding": "base64",
+                            "data": label,
+                        },
+                    }
+                ],
+            }
+            session.write_response(stem, json.dumps(body))
+
+            request = json.loads(
+                (session.capture_dir / f"{stem}.request.json").read_text()
+            )
+            self.assertEqual(
+                request["url"],
+                "https://atapi2.postnord.com/rest/shipment/v3/edi/labels/pdf",
+            )
+            response = json.loads(
+                (session.capture_dir / f"{stem}.response.parsed.json").read_text()
+            )
+            data = response["body"]["labelPrintout"][0]["printout"]["data"]
+            self.assertIn("omitted", data)
+            self.assertEqual(data["files"], [f"{stem}.printout01.pdf"])
+            document = session.capture_dir / f"{stem}.printout01.pdf"
+            self.assertEqual(
+                document.read_bytes(), base64.b64decode(label)
+            )
+            self.assertNotIn(SYNTHETIC_APIKEY, (session.capture_dir / f"{stem}.request.json").read_text())
+
+    def test_latest_segment_capture_prefers_the_newest_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            sandbox = pathlib.Path(directory)
+            for run in ("20261018T000000Z", "20261019T000000Z"):
+                run_dir = sandbox / run
+                run_dir.mkdir()
+                (run_dir / "001-p1_cn23_gateway.response.parsed.json").write_text(
+                    json.dumps(
+                        {
+                            "body": {
+                                "bookingResponse": {
+                                    "idInformation": [
+                                        {
+                                            "ids": [
+                                                {
+                                                    "idType": "itemId",
+                                                    "value": "1",
+                                                    "printId": f"print-{run}",
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    )
+                )
+            latest = harness.latest_segment_capture(sandbox, "p1_cn23_gateway")
+            assert latest is not None
+            self.assertEqual(latest.run_dir.name, "20261019T000000Z")
+            self.assertEqual(
+                harness.find_print_id(latest.parsed), "print-20261019T000000Z"
+            )
+
+    def test_latest_segment_capture_absent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertIsNone(
+                harness.latest_segment_capture(pathlib.Path(directory), "p1_cn23_gateway")
+            )
+
+    def test_find_print_id_and_absence(self):
+        parsed = {
+            "body": {
+                "bookingResponse": {
+                    "idInformation": [
+                        {"ids": [{"idType": "shipmentId", "value": "s1"}]},
+                        {"ids": [{"idType": "itemId", "value": "i1", "printId": "print-1"}]},
+                    ]
+                }
+            }
+        }
+        self.assertEqual(harness.find_print_id(parsed), "print-1")
+        self.assertIsNone(harness.find_print_id({"body": {}}))
+
+    def test_extract_documents_handles_by_id_list_shape(self):
+        documents = harness.extract_documents(
+            [
+                {
+                    "itemIds": [{"status": "FAIL"}],
+                    "printout": {
+                        "labelFormat": "ZPL",
+                        "encoding": "none",
+                        "data": "^XA^PW609",
+                    },
+                }
+            ]
+        )
+        self.assertEqual(len(documents), 1)
+        self.assertEqual(documents[0].extension, "zpl")
+        self.assertEqual(documents[0].data, b"^XA^PW609")
+
+    def test_capture_gateway_calls_pairs_tracer_records(self):
+        import karrio.sdk as karrio
+
+        with tempfile.TemporaryDirectory() as directory:
+            session = offline_session(pathlib.Path(directory))
+            gateway = karrio.gateway["postnord"].create(
+                dict(
+                    id="selftest",
+                    test_mode=True,
+                    carrier_id="postnord",
+                    apikey=SYNTHETIC_APIKEY,
+                    customer_number="12345678",
+                    issuer_code="Z12",
+                    account_country_code="SE",
+                )
+            )
+            gateway.tracer.trace(
+                {
+                    "request_id": "r1",
+                    "url": (
+                        "https://atapi2.postnord.com/rest/shipment/v3/edi/labels/pdf"
+                        f"?apikey={SYNTHETIC_APIKEY}"
+                    ),
+                    "data": json.dumps({"testIndicator": True}),
+                },
+                "request",
+            )
+            gateway.tracer.trace(
+                {"request_id": "r1", "response": json.dumps({"bookingResponse": {}})},
+                "response",
+            )
+
+            bodies = session.capture_gateway_calls(gateway, "p1_cn23_gateway")
+            self.assertEqual(bodies, [{"bookingResponse": {}}])
+            files = sorted(path.name for path in session.capture_dir.iterdir())
+            self.assertEqual(
+                files,
+                [
+                    "001-p1_cn23_gateway.request.json",
+                    "001-p1_cn23_gateway.response.parsed.json",
+                ],
+            )
+            safe = (session.capture_dir / files[0]).read_text()
+            self.assertNotIn(SYNTHETIC_APIKEY, safe)
+            self.assertNotIn("apikey", safe)
+
+    def test_gateway_resolves_the_sandbox_origin_in_test_mode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session = offline_session(pathlib.Path(directory))
+            gateway = session.gateway()
+            self.assertTrue(gateway.settings.test_mode)
+            self.assertEqual(gateway.settings.server_url, harness.SANDBOX_ORIGIN)
+            harness.check_url(gateway.settings.server_url or "")
+
+
+class TestPayloads(unittest.TestCase):
+    """The probe payloads serialize onto the intended PostNord branches.
+
+    Request building is offline, so the shapes the live segments will send
+    are pinned here before any probe fires: p1 onto the CN23 branch with
+    zero postalCharges, p2 onto the commercial customs invoice, and the raw
+    body onto a customs-less ediInstruction with the test flag.
+    """
+
+    def setUp(self):
+        self.maxDiff = None
+        import karrio.core.models as models
+        import karrio.lib as lib
+
+        self.models = models
+        self.lib = lib
+        with tempfile.TemporaryDirectory() as directory:
+            self.gateway = offline_session(pathlib.Path(directory)).gateway()
+
+    def _serialized(self, payload: dict) -> typing.Any:
+        request = self.gateway.mapper.create_shipment_request(
+            self.models.ShipmentRequest(**payload)
+        )
+        return self.lib.to_dict(request.serialize())
+
+    def test_cn23_payload_books_the_cn23_branch(self):
+        body = self._serialized(
+            payloads.cn23_payload("SE556000123401", "P1-CN23-GATEWAY")
+        )
+        self.assertTrue(body["testIndicator"])
+        entry = body["shipment"][0]
+        self.assertEqual(entry["service"]["basicServiceCode"], "91")
+        self.assertIn("customsDeclarationCN23", entry)
+        self.assertNotIn("customsDeclarationCN22", entry)
+        self.assertNotIn("customsInvoice", entry)
+        declaration = entry["customsDeclarationCN23"]
+        self.assertEqual(
+            declaration["EORIorPersonalIdNumber"], "SE556000123401"
+        )
+        self.assertEqual(
+            declaration["postalCharges"], {"amount": 0, "currency": "SEK"}
+        )
+        self.assertEqual(len(declaration["detailedDescription"]), 2)
+        self.assertEqual(
+            entry["parties"]["consignee"]["party"]["address"]["countryCode"], "AL"
+        )
+
+    def test_invoice_payload_books_the_commercial_invoice_branch(self):
+        body = self._serialized(
+            payloads.invoice_payload("SE556000123401", "P2-INVOICE-GATEWAY")
+        )
+        entry = body["shipment"][0]
+        self.assertEqual(entry["service"]["basicServiceCode"], "18")
+        self.assertIn("customsInvoice", entry)
+        self.assertNotIn("customsDeclarationCN23", entry)
+        invoice = entry["customsInvoice"]
+        self.assertEqual(invoice["type"], "COMMERCIAL")
+        self.assertEqual(invoice["seller"]["eoriNo"], "SE556000123401")
+        self.assertEqual(invoice["buyer"]["countryCode"], "AL")
+
+    def test_raw_booking_body_carries_no_customs_and_flags_test(self):
+        for code in ("18", "91"):
+            with self.subTest(basic_service_code=code):
+                body = payloads.raw_booking_body(code, "12345678")
+                self.assertTrue(body["testIndicator"])
+                self.assertEqual(body["updateIndicator"], "Original")
+                entry = body["shipment"][0]
+                self.assertEqual(entry["service"], {"basicServiceCode": code})
+                self.assertEqual(
+                    sorted(entry),
+                    [
+                        "goodsItem",
+                        "parties",
+                        "service",
+                        "shipmentIdentification",
+                    ],
+                )
+                self.assertEqual(
+                    entry["parties"]["consignor"]["partyIdentification"],
+                    {"partyId": "12345678", "partyIdType": "160"},
+                )
