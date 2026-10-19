@@ -14,18 +14,23 @@ Consumer-facing summary of how the PostNord connector turns unified `customs` da
 
 A shipment carrying `customs` with at least one commodity sends exactly one customs structure, selected by the booked service.
 Letter services send a CN22 declaration (`customsDeclarationCN22`).
+International Parcel (`postnord_postpaket_utrikes`, 91) sends a CN23 declaration (`customsDeclarationCN23`).
 Every other service is a parcel product and sends a customs invoice (`customsInvoice`), with no CN22 or CN23.
 
 | Group | Services (basicServiceCode) | Customs structure |
 |---|---|---|
 | Letters | `postnord_tracked` (04), `postnord_tracked_letter` (34), `postnord_export_letter` (UX), `postnord_varubrev_first_class` (86), `postnord_expressbrev` (LX), `postnord_rek` (RR), `postnord_rek_retur` (RK), `postnord_rek_extra` (RL), `postnord_rekommanderet_brev` (RE), `postnord_rekommanderet_quickbrev` (RQ), `postnord_varde` (VV), `postnord_afleveringsattest` (AF) | CN22 |
-| Parcel products | all other services, for example `postnord_mypack_home`, `postnord_mypack_collect`, `postnord_parcel`, `postnord_pallet`, `postnord_postpaket_utrikes` (91), and any service code the connector does not list | customs invoice |
+| International Parcel | `postnord_postpaket_utrikes` (91) | CN23 |
+| Parcel products | all other services, for example `postnord_mypack_home`, `postnord_mypack_collect`, `postnord_parcel`, `postnord_pallet`, and any service code the connector does not list | customs invoice |
 
-The letter set is `LETTER_SERVICES` in `karrio/providers/postnord/units.py`, so a service added later is a parcel product unless it is added there.
+The letter set is `LETTER_SERVICES` and the CN23 service is `INTERNATIONAL_PARCEL_SERVICE`, both in `karrio/providers/postnord/units.py` and applied by `customs_structure`, so a service added later is a parcel product unless it is added to one of them.
 Selecting CN23 and applying value thresholds such as PostNord Sweden's SEK 2 000 were not implemented at the time of this note.
 
 Ported-note update (2026-10-13): International Parcel (91) now books a CN23 declaration (`customsDeclarationCN23`) unconditionally — PostNord's published requirement for Postpaket Utrikes is a CN23 at any value — reusing the CN22 mapping and checks minus the CN22-only `countryOfOrigin` and booking `postalCharges` as a zero amount.
 The README's customs section carries the current behavior.
+
+Ported-note update (2026-10-19): corrected the product-group sentence and table above, which listed International Parcel (91) as a customs-invoice parcel product; the connector books a CN23 for 91.
+A test-mode sandbox probe found that PostNord's customs gate for a 91 booking accepts either an inline CN23 or application linkage and rejects a booking with neither with `SACUS-BR-24100901` ([cn23-composition-sandbox-probe.md](../sandbox/cn23-composition-sandbox-probe.md)).
 
 ## Shipments within the EU VAT area
 
