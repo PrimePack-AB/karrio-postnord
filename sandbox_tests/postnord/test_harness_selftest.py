@@ -400,6 +400,18 @@ class TestCaptures(unittest.TestCase):
         self.assertEqual(harness.find_print_id(parsed), "print-1")
         self.assertIsNone(harness.find_print_id({"body": {}}))
 
+    def test_find_print_id_refuses_the_redaction_sentinel(self):
+        # A pre-fix capture holds the sentinel where the printId belongs;
+        # keying a by-id fetch on it queries an id that never existed.
+        parsed = {
+            "body": {
+                "labelPrintout": [
+                    {"itemIds": [{"itemIds": "CC613724769SE", "printId": harness.REDACTED}]}
+                ]
+            }
+        }
+        self.assertIsNone(harness.find_print_id(parsed))
+
     def test_extract_documents_handles_by_id_list_shape(self):
         documents = harness.extract_documents(
             [

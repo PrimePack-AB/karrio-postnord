@@ -361,13 +361,18 @@ def find_print_id(parsed: typing.Any) -> typing.Optional[str]:
     """The printId accompanying the first assigned item id, anywhere in ``parsed``.
 
     Mirrors the connector's ``shipment.create._first_print_id``: the by-id
-    labels endpoint resolves printIds, not item ids.
+    labels endpoint resolves printIds, not item ids. The redaction sentinel
+    is not an id: a capture written before artifact ids were retained holds
+    ``<redacted>`` there, and keying a by-id fetch on it queries garbage.
     """
     stack = [parsed]
     while stack:
         item = stack.pop()
         if isinstance(item, dict):
-            if item.get("idType") == "itemId" and item.get("printId"):
+            if item.get("idType") == "itemId" and item.get("printId") not in (
+                None,
+                REDACTED,
+            ):
                 return str(item["printId"])
             stack.extend(item.values())
         elif isinstance(item, list):
