@@ -9,7 +9,8 @@
 - Docs site preview: `DOCS_DIR=$PWD/docs SITE_BASE=/karrio-postnord REPO_URL=https://github.com/PrimePack-AB/karrio-postnord bun run --cwd ../starlight-docs-harness dev` — renders ./docs minus docs/notes/ at http://localhost:4321/karrio-postnord/; publishing is automatic on docs pushes to main via docs-pages
 
 ## Fork SDK floor
-- The connector is fork-coupled: it uses the document-stamping `PluginMetadata` fields that exist only in the Joaqim/karrio fork's SDK, so upstream karrio cannot import it. `dependencies = ["karrio"]` is plain because no pip-solvable fork ref exists; dev/test/CI run against `-e ../karrio/modules/sdk` (CI pins `FORK_REF` in .github/workflows/tests.yml)
+- The connector is fork-coupled: it uses the document-stamping `PluginMetadata` fields that exist only in the Joaqim/karrio fork's SDK, so upstream karrio cannot import it. `dependencies = ["karrio"]` is plain because no pip-solvable fork ref exists; dev/test run against `-e ../karrio/modules/sdk`, CI against the fork's `develop`
+- The requirement is stated by capability, not commit: the SDK must provide `PluginMetadata.stamp_seeds` and `PluginMetadata.document_sections` together with `karrio.lib.StampSeed`, `StampPlacement`, `AnyOf`, `CustomsComposition`, and `classify_customs_composition`. `develop` is regenerated and force-pushed, so its shas are not durable; CI checks these names by import before the suite runs (last verified at develop a7355a5c8 on 2026-10-19, whose modules/sdk tree matches the extraction base 65468d813)
 - A git+https SDK install cannot replace the checkout: pip recursively fetches the monorepo's private submodules that modules/sdk does not need
 
 ## Pyright baseline

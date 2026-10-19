@@ -17,7 +17,7 @@ python3.12 -m venv .venv
 ```
 
 `requirements-dev.txt` installs the SDK editable from `../karrio/modules/sdk`.
-That checkout must be the fork on a ref carrying the document-stamping SDK surface — the same floor CI pins — because upstream karrio cannot import this plugin (see [Plugin layout](architecture/plugin-layout.md)).
+That checkout must be the fork on a ref providing the document-stamping SDK surface that CI checks by import, such as `develop` (last verified at a7355a5c8 on 2026-10-19), because upstream karrio cannot import this plugin (see [Plugin layout](architecture/plugin-layout.md)).
 A `git+https` install of the SDK cannot replace the checkout: pip recursively fetches the monorepo's private submodules that `modules/sdk` does not need.
 
 ## Tests
@@ -34,7 +34,7 @@ A single test module uses the discover form with a pattern, not a dotted module 
 .venv/bin/python -m unittest discover -v -f -s tests -p "test_rate.py"
 ```
 
-CI (`.github/workflows/tests.yml`) runs the same suite against the fork SDK at the pinned `FORK_REF`.
+CI (`.github/workflows/tests.yml`) runs the same suite against the fork's `develop` branch, after checking that its SDK provides the document-stamping surface.
 
 ## Type checking
 

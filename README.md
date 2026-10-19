@@ -23,7 +23,8 @@ A server deployment can also expose the package through the `KARRIO_PLUGINS` dir
 ### Fork SDK floor
 
 This connector is fork-coupled: it uses the document-stamping `PluginMetadata` fields that exist only in the [Joaqim/karrio](https://github.com/Joaqim/karrio) fork's SDK, not in upstream karrio, so a runtime on upstream karrio cannot import it.
-The package declares a plain `karrio` dependency because no pip-solvable fork reference exists; the karrio the plugin runs against must therefore be a fork checkout on a ref carrying the stamping SDK surface, such as the develop union `65468d813` that CI pins.
+The package declares a plain `karrio` dependency because no pip-solvable fork reference exists; the karrio the plugin runs against must therefore be a fork checkout providing the stamping SDK surface: `PluginMetadata.stamp_seeds` and `PluginMetadata.document_sections` together with `karrio.lib.StampSeed`, `StampPlacement`, `AnyOf`, `CustomsComposition`, and `classify_customs_composition`.
+CI tests against the fork's `develop` branch, which provides it (last verified at a7355a5c8 on 2026-10-19), and checks these names by import before running the suite; `develop` is regenerated, so the requirement is stated by capability rather than by commit.
 
 ## Usage
 

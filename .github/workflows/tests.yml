@@ -6,12 +6,6 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  # Fork SDK floor (fork-only stamping PluginMetadata fields): the public
-  # Joaqim/karrio ref the connector is tested against, as a full sha —
-  # actions/checkout fetches the ref verbatim and short shas fail. Bump on release.
-  FORK_REF: 65468d8136f1a454237c748d73d1b59924b3e62b
-
 permissions:
   contents: read
 
@@ -25,7 +19,9 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: Joaqim/karrio
-          ref: ${{ env.FORK_REF }}
+          # develop is regenerated and force-pushed, so its shas are not
+          # durable; a later step checks the required SDK surface instead.
+          ref: develop
           path: karrio-sdk
           submodules: false
       - uses: actions/setup-python@v5
@@ -33,5 +29,35 @@ jobs:
           python-version: "3.12"
       - name: Install the fork SDK and the connector
         run: pip install -e karrio-sdk/modules/sdk -e .
+      - name: Check the SDK provides the document-stamping surface
+        run: |
+          python - <<'EOF'
+          import sys
+          import attr
+          import karrio.lib as lib
+          from karrio.core.metadata import PluginMetadata
+
+          fields = attr.fields_dict(PluginMetadata)
+          missing = [
+              f"PluginMetadata.{name}"
+              for name in ("stamp_seeds", "document_sections")
+              if name not in fields
+          ] + [
+              f"karrio.lib.{name}"
+              for name in (
+                  "StampSeed",
+                  "StampPlacement",
+                  "AnyOf",
+                  "CustomsComposition",
+                  "classify_customs_composition",
+              )
+              if not hasattr(lib, name)
+          ]
+          if missing:
+              sys.exit(
+                  "Joaqim/karrio develop lacks the document-stamping SDK surface "
+                  "this connector needs: " + ", ".join(missing)
+              )
+          EOF
       - name: Run the connector test suite
         run: python -m unittest discover -f -s tests
