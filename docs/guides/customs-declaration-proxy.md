@@ -44,3 +44,7 @@ A CN22 without a registration number (EORI, VOEC, or IOSS) is rejected — the s
 The digital endpoint's success response is the bare `bookingResponseCN` object (booking id plus per-id status), not a wrapped envelope; the connector's parser reads both shapes.
 The PDF variant returns a wrapped envelope plus the rendered, pre-filled declaration in `labelPrintout`, which the connector attaches as a `ShippingDocument`.
 A declaration for an item whose EDI booking was never sent is refused ("EDI must have been sent earlier").
+
+This flow is one of the two shapes that satisfy PostNord's booking-time customs gate: a 91 booking with neither inline customs nor an application object is rejected with `SACUS-BR-24100901` demanding a four-digit `applicationId`, while the same body plus the application object is accepted and composes the bare label with every customs kind at zero (test-mode captures, 2026-10-19; [rejected](../../tests/postnord/fixtures/sandbox/p3-no-customs-raw-91.response.json), [accepted](../../tests/postnord/fixtures/sandbox/p5-no-customs-with-application-raw.response.json), [printout](../../tests/postnord/fixtures/sandbox/p5-no-customs-with-application-raw.printout01.pdf)).
+An application-linked booking therefore ships with no customs document until a declaration arrives through this proxy — the parcel label is the whole printout.
+Test mode sends no EDI downstream, so production behavior may differ.

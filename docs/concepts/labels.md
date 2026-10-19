@@ -20,13 +20,19 @@ The ZPL body starts with persistent host commands — `^LL1520` (190 mm at 8 dot
 
 ## Composed printouts
 
-For letter services booked with customs data, PostNord composes the CN22 into the booking printout itself: one PDF or one ZPL carrying both the CN22 section and the label section.
+For bookings with customs data, PostNord composes the customs document into the booking printout itself: one PDF or one ZPL carrying both the declaration section and the label section.
 `docs.label` is that composed printout, returned unchanged, and `meta.printout_composition` lists the kinds PostNord declares, for example `["cn22", "label"]`.
+For International Parcel (91), the committed test-mode capture shows the composition `{cn23: 1, label: 1}` as one two-page A4 PDF — the parcel label on page 1, the CN23 on page 2 ([response](../../tests/postnord/fixtures/sandbox/p1-cn23-gateway.response.json), [printout](../../tests/postnord/fixtures/sandbox/p1-cn23-gateway.printout01.pdf)); test mode sends no EDI downstream, so production composition may differ.
 
 The connector verifies the composed label with the SDK customs classifier using PostNord's declared section markers (`DOCUMENT_SECTIONS` in `karrio/providers/postnord/stamping.py`).
-A label that does not classify as the shipping label composed with a CN22 is still returned unchanged, with a `postnord_unexpected_label_composition` warning naming the expected and the classified composition; the booking never fails on it.
-Bookings without customs data, within the EU VAT area, or on International Parcel (91) are not verified.
+A label that does not classify as the shipping label composed with the branch's declaration is still returned unchanged, with a `postnord_unexpected_label_composition` warning naming the expected and the classified composition; the booking never fails on it.
+CN22 labels are verified in both formats.
+CN23 labels (International Parcel 91) are verified on PDF against the CN23 page-text markers seeded from that capture, read from the classifier's matched kinds because its composition vocabulary is closed to the CN22; a ZPL label skips the check, since no ZPL CN23 printout has been captured, and the CN23 signature-strip seed is likewise PDF-only.
+Customs-invoice labels declare no section markers in any format and are never content-verified, and bookings without customs data or within the EU VAT area are not verified.
 The classifier anchors accept the template variance PostNord's printouts show — the letter CN22 rotated beside the label versus the parcel services' separate upright CN22 format — and the working capture record is [docs/notes/sandbox/booking-printout-composition-verification.md](../notes/sandbox/booking-printout-composition-verification.md).
+
+Every customs-declared booking additionally attests the server-declared `meta.printout_composition` against the kinds its customs branch composes — `{label, cn22}` for letters, `{label, cn23}` for International Parcel (91), `{label, customsInvoice}` for parcel products.
+A disagreement warns with `postnord_printout_composition_mismatch`, an absent declaration stays silent, and neither ever fails the booking; the pre-CN23 91 captures, which compose a CN22, therefore warn by design when replayed.
 
 ## Standalone customs documents
 
