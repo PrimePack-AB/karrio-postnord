@@ -9,8 +9,8 @@ The connector builds the structure, validates it before any carrier call, and co
 
 | Service family | Structure | Notes |
 |----------------|-----------|-------|
-| Letter services | `customsDeclarationCN22` | the postal CN22; requires at least one of EORI, VOEC, IOSS under `customs.options` |
-| International Parcel (91) | `customsDeclarationCN23` | booked unconditionally — PostNord's published requirement for Postpaket Utrikes is a CN23 at any value, not a value-threshold CN22 |
+| Letter services | `customsDeclarationCN22` | the postal CN22; requires at least one of EORI, VOEC, IOSS under `customs.options`, or a shipper `state_tax_id` to use as the EORI |
+| International Parcel (91) | `customsDeclarationCN23` | booked unconditionally — PostNord's published requirement for Postpaket Utrikes is a CN23 at any value, not a value-threshold CN22; the same registration requirement as the CN22 applies |
 | Every other service | `customsInvoice` | commercial or proforma invoice; registration numbers optional |
 
 The selection is `customs_structure` in `karrio/providers/postnord/units.py`, keyed by basic service code; a service added later is a parcel product unless it is added to `LETTER_SERVICES`.
@@ -49,7 +49,7 @@ The CN22 branch maps the unified customs payload onto the postal declaration: `c
 Commodity `weight` and `value_amount` are per unit, so every line carries them multiplied by `quantity`.
 Registration numbers (`eori_number`, `voec_number`, `ioss_number`) ride `customs.options` — a provider-level enum exists because the core karrio `CustomsOption` enum carries no VOEC or IOSS members, and a registration number placed under shipment `options` rejects with a field error so it is never silently dropped.
 
-A CN22 without any registration number rejects before any carrier call, mirroring PostNord's rejection `SACUS-BR-24062502`, and declarations accept at most 13 commodity lines.
+A CN22 or CN23 without any registration number and without a shipper `state_tax_id` to use as the EORI rejects before any carrier call, mirroring PostNord's rejection `SACUS-BR-24062502`, and declarations accept at most 13 commodity lines.
 The CN23 branch of International Parcel reuses the CN22 mapping and checks in full, minus the CN22-only `countryOfOrigin`, and books the swagger-required `postalCharges` as a zero amount in the `totalValue` currency.
 
 ## Customs invoice mapping
