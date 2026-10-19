@@ -659,8 +659,8 @@ def _customs_declaration_cn23(
     handling as the CN22 minus CN22-only ``countryOfOrigin``. The swagger
     additionally marks ``postalCharges`` required; the unified model carries
     no postal charges, so the element is booked as a zero amount in the
-    ``totalValue`` currency (acceptance live-verified in the sandbox
-    follow-up). Without a derivable ``totalValue`` currency there is nothing
+    ``totalValue`` currency (accepted by the PostNord sandbox in test mode,
+    tests/postnord/fixtures/sandbox/p1-cn23-gateway.response.json). Without a derivable ``totalValue`` currency there is nothing
     to take, and the element is omitted like every other underivable field.
     """
     provider_units.enforce_customs_declaration_lines(
