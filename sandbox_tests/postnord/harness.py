@@ -42,14 +42,21 @@ REDACTED = "<redacted>"
 # PostNord apikeys are 32-character alphanumeric tokens; any such run is
 # masked wherever it appears, so a rotated or unexpected key cannot survive.
 APIKEY_LIKE = re.compile(r"[A-Za-z0-9]{32}")
+# A sha256 digest is 64 lowercase hex characters, a shape no 32-character
+# apikey has, so digest-shaped values under digest keys are retained whole.
+SHA256_DIGEST = re.compile(r"[0-9a-f]{64}")
 # Artifact identifiers PostNord allocates are evidence, not credentials:
 # the repo's redaction carve-out lets printIds and bookingIds stand in
-# captures and notes. Keys carrying them (the API's camelCase and the
-# ledger's snake_case forms) skip the apikey heuristic only; the literal
-# configured secrets are still masked inside them.
+# captures and notes. Keys carrying them (the API's camelCase, the
+# ledger's snake_case, and the by-id request's generic member key "id")
+# skip the apikey heuristic only; the literal configured secrets are
+# still masked inside them. The apikey travels as a query parameter and
+# every captured URL drops its query wholesale, so these exemptions
+# cannot let it through.
 ARTIFACT_ID_KEYS = frozenset(
-    {"printid", "print_id", "bookingid", "booking_id"}
+    {"printid", "print_id", "bookingid", "booking_id", "id"}
 )
+DIGEST_KEYS = frozenset({"sha256"})
 DOCUMENT_EXTENSIONS = {"PDF": "pdf", "ZPL": "zpl"}
 
 
@@ -187,8 +194,12 @@ def redact(value: typing.Any, secrets: typing.Iterable[typing.Optional[str]]) ->
     """Copy ``value`` with query strings stripped and apikey-like runs masked.
 
     Values under the artifact-id keys keep their 32-character identifier
-    runs: a printId or bookingId is booking evidence the carve-out permits,
-    and only the literal configured secrets are masked inside them.
+    runs (a printId or bookingId is booking evidence the carve-out permits,
+    and the by-id request's members carry their printId under the generic
+    key ``id``), and digest-shaped values under ``sha256`` keys keep their
+    64 hex characters: only the literal configured secrets are masked
+    inside them. The apikey travels as a query parameter and every URL
+    loses its query wholesale, so these exemptions cannot let it survive.
     """
 
     masked = [secret for secret in secrets if secret]
@@ -198,7 +209,7 @@ def redact(value: typing.Any, secrets: typing.Iterable[typing.Optional[str]]) ->
             text = text.replace(secret, REDACTED)
         return APIKEY_LIKE.sub(REDACTED, text) if mask_keylike else text
 
-    def _walk(item: typing.Any) -> typing.Any:
+    def _walk(item: typing.Any, parent: str = "") -> typing.Any:
         if isinstance(item, dict):
             walked = {}
             for key, entry in item.items():
@@ -208,11 +219,13 @@ def redact(value: typing.Any, secrets: typing.Iterable[typing.Optional[str]]) ->
                 elif name == "url" and isinstance(entry, str):
                     walked[key] = _mask(strip_query(entry))
                 else:
-                    walked[key] = _walk(entry)
+                    walked[key] = _walk(entry, str(key))
             return walked
         if isinstance(item, (list, tuple)):
-            return [_walk(entry) for entry in item]
+            return [_walk(entry, parent) for entry in item]
         if isinstance(item, str):
+            if parent.lower() in DIGEST_KEYS and SHA256_DIGEST.fullmatch(item):
+                return _mask(item, mask_keylike=False)
             return _mask(item)
         return item
 

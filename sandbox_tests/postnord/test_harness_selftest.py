@@ -10,6 +10,7 @@ probe fires.
 import base64
 import dataclasses
 import datetime
+import hashlib
 import json
 import pathlib
 import tempfile
@@ -207,6 +208,78 @@ class TestRedaction(unittest.TestCase):
         safe = harness.redact(dict(printId=embedded, booking_id=embedded), [SYNTHETIC_APIKEY])
         self.assertEqual(safe, dict(printId=f"x{harness.REDACTED}x", booking_id=f"x{harness.REDACTED}x"))
 
+    def test_redact_retains_sha256_digest_lists(self):
+        # with_document_metadata records each printout's digest under a
+        # "sha256" key; masking the harness's own evidence digests is the
+        # same evidence-loss class as masking a printId.
+        digest_a = "a" * 64
+        digest_b = "0123456789abcdef" * 4
+        artifact = dict(
+            printout=dict(
+                data=dict(
+                    omitted="printout data stored as raw bytes alongside",
+                    files=["001-p1_cn23_gateway.printout01.pdf"],
+                    sha256=[digest_a, digest_b],
+                )
+            ),
+            single=dict(sha256=digest_a),
+        )
+        safe = harness.redact(artifact, [SYNTHETIC_APIKEY])
+        self.assertEqual(safe["printout"]["data"]["sha256"], [digest_a, digest_b])
+        self.assertEqual(safe["single"]["sha256"], digest_a)
+
+    def test_redact_masks_non_digest_values_under_sha256_keys(self):
+        # Retention under "sha256" is shape-scoped: a 32-character
+        # apikey-looking value, or a 64-character non-hex one, still masks.
+        keylike = "z9Y8x7W6v5U4t3S2r1Q0p9O8n7M6l5K4"
+        safe = harness.redact(
+            dict(sha256=[keylike, "G" * 64], nested=dict(sha256=keylike)), []
+        )
+        self.assertEqual(
+            safe,
+            dict(
+                sha256=[harness.REDACTED, harness.REDACTED + harness.REDACTED],
+                nested=dict(sha256=harness.REDACTED),
+            ),
+        )
+
+    def test_redact_masks_the_secret_inside_a_retained_digest(self):
+        hex_secret = "abc123def456abc123def456abc123de"
+        digest = f"0123456789abcdef{hex_secret}0123456789abcdef"
+        safe = harness.redact(dict(sha256=digest), [hex_secret])
+        self.assertNotIn(hex_secret, safe["sha256"])
+        self.assertIn(harness.REDACTED, safe["sha256"])
+
+    def test_redact_retains_the_by_id_member_id(self):
+        # The by-id labels fetch keys on the printId under the generic
+        # member key "id"; the apikey shares the request only as a query
+        # parameter, and the query is dropped wholesale, so retaining the
+        # id value cannot retain the key.
+        print_id = "z9Y8x7W6v5U4t3S2r1Q0p9O8n7M6l5K4"
+        artifact = dict(
+            url=(
+                "https://atapi2.postnord.com/rest/shipment/v3/labels/ids/pdf"
+                f"?apikey={SYNTHETIC_APIKEY}&definePrintout=onlyCustomsDeclarations"
+            ),
+            data=[{"id": print_id}],
+        )
+        safe = harness.redact(artifact, [SYNTHETIC_APIKEY])
+        self.assertEqual(safe["data"], [{"id": print_id}])
+        self.assertEqual(
+            safe["url"],
+            "https://atapi2.postnord.com/rest/shipment/v3/labels/ids/pdf",
+        )
+        self.assertNotIn(SYNTHETIC_APIKEY, json.dumps(safe))
+
+    def test_redact_masks_32_character_tokens_under_unlisted_keys(self):
+        keylike = "z9Y8x7W6v5U4t3S2r1Q0p9O8n7M6l5K4"
+        safe = harness.redact(
+            dict(token=keylike, value=keylike, note=f"id {keylike}"), []
+        )
+        self.assertEqual(safe["token"], harness.REDACTED)
+        self.assertEqual(safe["value"], harness.REDACTED)
+        self.assertEqual(safe["note"], f"id {harness.REDACTED}")
+
     def test_redact_leaves_short_identifiers(self):
         value = dict(shipmentId="P3-NOCUSTOMS-18", partyId="12345678")
         self.assertEqual(harness.redact(value, []), value)
@@ -311,6 +384,10 @@ class TestCaptures(unittest.TestCase):
             data = response["body"]["labelPrintout"][0]["printout"]["data"]
             self.assertIn("omitted", data)
             self.assertEqual(data["files"], [f"{stem}.printout01.pdf"])
+            self.assertEqual(
+                data["sha256"],
+                [hashlib.sha256(base64.b64decode(label)).hexdigest()],
+            )
             document = session.capture_dir / f"{stem}.printout01.pdf"
             self.assertEqual(
                 document.read_bytes(), base64.b64decode(label)
@@ -326,6 +403,28 @@ class TestCaptures(unittest.TestCase):
                 response["body"]["bookingResponse"]["bookingId"],
                 "ILPN0010LBQRBGFFMCWLWZDUNDFQVS",
             )
+
+    def test_capture_retains_the_by_id_request_id(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session = offline_session(pathlib.Path(directory))
+            stem = session.next_stem("p4_byid_fetch_raw")
+            print_id = "z9Y8x7W6v5U4t3S2r1Q0p9O8n7M6l5K4"
+            session.write_request(
+                stem,
+                "https://atapi2.postnord.com/rest/shipment/v3/labels/ids/pdf"
+                f"?apikey={SYNTHETIC_APIKEY}&definePrintout=onlyCustomsDeclarations",
+                [{"id": print_id}],
+                note="raw by-id print fetch keyed by p1's printId",
+            )
+            request = json.loads(
+                (session.capture_dir / f"{stem}.request.json").read_text()
+            )
+            self.assertEqual(request["data"], [{"id": print_id}])
+            self.assertEqual(
+                request["url"],
+                "https://atapi2.postnord.com/rest/shipment/v3/labels/ids/pdf",
+            )
+            self.assertNotIn(SYNTHETIC_APIKEY, json.dumps(request))
 
     def test_log_booking_records_the_print_id(self):
         with tempfile.TemporaryDirectory() as directory:
