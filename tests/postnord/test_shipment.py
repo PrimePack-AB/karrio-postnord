@@ -3004,6 +3004,65 @@ class TestPostNordEUVATArea(unittest.TestCase):
                     expected,
                 )
 
+    def test_in_eu_vat_area_postal_code_forms(self):
+        cases = [
+            # FO and GL prefixes under DK
+            ("DK", "FO-100", False),
+            ("DK", "fo 100", False),
+            ("DK", "FO100", False),
+            ("DK", "GL-3900", False),
+            ("DK", "GL 1000", False),
+            ("DK", "gl2100", False),
+            # three-digit DK codes are Faroese; four digits stay Danish
+            ("DK", "100", False),
+            ("DK", "999", False),
+            ("DK", "1 00", False),
+            ("DK", "1000", True),
+            ("DK", "0100", True),
+            ("DK", "10", True),
+            # own-country prefix
+            ("FI", "FI-22100", False),
+            ("FI", "FI22100", False),
+            ("FI", "FI-00100", True),
+            ("ES", "ES-35001", False),
+            ("ES", "ES 28001", True),
+            ("FR", "FR-97100", False),
+            ("FR", "FR-75001", True),
+            ("EL", "EL-63086", False),
+            ("EL", "EL63086", False),
+            ("GR", "GR-63086", False),
+            ("DK", "DK-3800", False),
+            ("DK", "DK-100", False),
+            ("DK", "dk 2100", True),
+            # territory prefix under the parent country
+            ("FI", "AX-22100", False),
+            ("FI", "AX22100", False),
+            ("ES", "IC-35001", False),
+            ("ES", "EA 51001", False),
+            # GB prefix before a Northern Ireland postcode
+            ("GB", "GB BT1 1AA", True),
+            ("GB", "GB-BT1 1AA", True),
+            ("GB", "GBBT1 1AA", False),
+            ("GB", "GB SW1A 1AA", False),
+            # UK postcode areas that share a code with a prefix are not stripped
+            ("GB", "JE2 3AB", False),
+            ("GB", "GY1 1AA", False),
+            ("GB", "IM1 1AA", False),
+            ("GB", "BT1 1AA", True),
+            # plain codes stay unchanged
+            ("SE", "11143", True),
+            ("SE", "FO-100", True),
+            ("FI", "00100", True),
+            ("DE", "10115", True),
+            ("DK", " 2100 ", True),
+        ]
+        for country_code, postal_code, expected in cases:
+            with self.subTest(country_code=country_code, postal_code=postal_code):
+                self.assertEqual(
+                    provider_units.in_eu_vat_area(country_code, postal_code),
+                    expected,
+                )
+
     def test_intra_eu_parcel_omits_customs_and_warns(self):
         payload = {
             **CustomsInvoiceShipmentPayload,

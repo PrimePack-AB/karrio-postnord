@@ -27,8 +27,12 @@ The definition (`in_eu_vat_area` in `units.py`) matches the DHL Freight Sweden c
 | Inside (added beyond the SDK's EU list) | Monaco `MC`; Greece as `GR` alongside the VAT-prefix `EL`; Northern Ireland by `GB` postcode prefix `BT` (inside the EU VAT area for goods) |
 | Outside (own country code) | Åland `AX`; the Canary Islands `IC`; the French overseas departments `GP`, `GF`, `MQ`, `RE`, `YT` |
 | Outside (postcode range within a member state) | Åland `FI` 22000–22999; Canary Islands `ES` 35000–35999 and 38000–38999; Ceuta `ES` 51000–51999; Melilla `ES` 52000–52999; Büsingen `DE` 78266; Heligoland `DE` 27498; Mount Athos `GR` and `EL` 63086; Livigno `IT` 23041; Campione d'Italia `IT` 22061; the French overseas departments and collectivities `FR` 97000–97999; Wallis and Futuna, French Polynesia, and New Caledonia `FR` 98600–98899; the Faroe Islands and Greenland `DK` 3800–3999 |
+| Outside (postal code form within a member state) | the Faroe Islands and Greenland: a `DK` postal code prefixed `FO` or `GL`, or a three-digit `DK` postal code (Faroese format) |
 
-A parcel from Sweden to Mariehamn (`FI` 22100) therefore still carries customs.
+A postal code is compared after it is trimmed and upper-cased, a leading country code or territory code (`AX` under `FI`, `FO` and `GL` under `DK`, `IC` and `EA` under `ES`) followed by a hyphen, a space, or, except for `GB`, a digit is removed, and its spaces are dropped, so `FI-22100`, `AX22100`, and `GB BT1 1AA` read as `22100`, `22100`, and `BT11AA`.
+`JE`, `GY`, `IM`, and `BT` are never removed, because they begin United Kingdom postcodes.
+
+A parcel from Sweden to Mariehamn (`FI` 22100, or `FI-22100`) therefore still carries customs.
 
 ## CN22 and CN23 mapping
 

@@ -1,3 +1,4 @@
+import re
 import typing
 import karrio.lib as lib
 import karrio.core.units as units
@@ -366,6 +367,22 @@ NON_EU_VAT_POSTAL_RANGES: typing.Tuple[typing.Tuple[str, int, int], ...] = (
 EU_VAT_POSTAL_PREFIXES: typing.Tuple[typing.Tuple[str, str], ...] = (
     ("GB", "BT"),  # Northern Ireland
 )
+NUMERIC_POSTAL_TERRITORY_PARENTS: typing.Dict[str, str] = {
+    "AX": "FI",  # Åland
+    "FO": "DK",  # Faroe Islands
+    "GL": "DK",  # Greenland
+    "IC": "ES",  # Canary Islands
+    "EA": "ES",  # Ceuta and Melilla
+}
+NON_EU_VAT_POSTAL_TERRITORY_PREFIXES: typing.Tuple[typing.Tuple[str, str], ...] = (
+    ("DK", "FO"),  # Faroe Islands
+    ("DK", "GL"),  # Greenland
+)
+NON_EU_VAT_POSTAL_CODE_LENGTHS: typing.Tuple[typing.Tuple[str, int], ...] = (
+    ("DK", 3),  # Faroe Islands
+)
+# Leading letters of United Kingdom postcodes, never removed as a leading code.
+UK_POSTCODE_AREA_CODES: typing.FrozenSet[str] = frozenset({"JE", "GY", "IM", "BT"})
 
 # Warning code shared with the DHL Freight Sweden connector.
 CUSTOMS_OMITTED_INTRA_EU = "customs_omitted_intra_eu"
@@ -388,21 +405,64 @@ def in_eu_vat_area(
     country_code: typing.Optional[str],
     postal_code: typing.Optional[str],
 ) -> bool:
-    """Whether an address lies inside the EU VAT area for goods."""
+    """Whether an address lies inside the EU VAT area for goods.
+
+    The postal code is upper-cased and trimmed, loses a leading code from
+    ``_postal_prefix_codes`` followed by a hyphen, whitespace, or (except for
+    ``GB``) a digit, and loses its spaces; the ranges and the inclusion
+    prefixes are compared against the result. A removed code listed in
+    ``NON_EU_VAT_POSTAL_TERRITORY_PREFIXES``, or a purely numeric code whose
+    digit count ``NON_EU_VAT_POSTAL_CODE_LENGTHS`` lists, places the address
+    outside.
+    """
     country = (country_code or "").upper()
-    postal = str(postal_code or "").replace(" ", "")
+    prefix_code, postal = _split_postal_code(country, postal_code)
     postal_number = int(postal) if postal.isdigit() else None
 
-    inside_member_state = country in EU_VAT_AREA_COUNTRIES and not any(
-        country == range_country
-        and postal_number is not None
-        and low <= postal_number <= high
-        for range_country, low, high in NON_EU_VAT_POSTAL_RANGES
+    inside_member_state = country in EU_VAT_AREA_COUNTRIES and not (
+        any(
+            country == range_country
+            and postal_number is not None
+            and low <= postal_number <= high
+            for range_country, low, high in NON_EU_VAT_POSTAL_RANGES
+        )
+        or (country, prefix_code) in NON_EU_VAT_POSTAL_TERRITORY_PREFIXES
+        or (
+            postal_number is not None
+            and (country, len(postal)) in NON_EU_VAT_POSTAL_CODE_LENGTHS
+        )
     )
     return inside_member_state or any(
-        country == prefix_country and postal.upper().startswith(prefix)
+        country == prefix_country and postal.startswith(prefix)
         for prefix_country, prefix in EU_VAT_POSTAL_PREFIXES
     )
+
+
+def _postal_prefix_codes(country: str) -> typing.Tuple[str, ...]:
+    """The country's own code and its numeric-postal territories' codes, minus UK postcode areas."""
+    territories = (
+        territory
+        for territory, parent in NUMERIC_POSTAL_TERRITORY_PARENTS.items()
+        if parent == country
+    )
+    return tuple(
+        code
+        for code in (country, *territories)
+        if code and code not in UK_POSTCODE_AREA_CODES
+    )
+
+
+def _split_postal_code(
+    country: str, postal_code: typing.Optional[str]
+) -> typing.Tuple[typing.Optional[str], str]:
+    """The removed leading code, if any, and the normalized postal code."""
+    postal = str(postal_code or "").strip().upper()
+    for code in _postal_prefix_codes(country):
+        separator = r"[\s-]+" if code == "GB" else r"[\s-]+|(?=\d)"
+        prefix = re.match(rf"{re.escape(code)}(?:{separator})", postal)
+        if prefix:
+            return code, postal[prefix.end():].replace(" ", "")
+    return None, postal.replace(" ", "")
 
 
 class CustomsStructure(lib.StrEnum):
