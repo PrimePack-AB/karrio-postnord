@@ -76,7 +76,7 @@ Connection config options (under the connection's config):
 | `locale_by_recipient` | `false` | Derive the booking locale from the recipient country (`SE`→`sv`, `DK`→`da`, `NO`→`no`, `FI`→`fi`) when neither `options.language` nor `language` is set. The server also persists the derived locale on the shipment and its tracker. |
 | `offer_tracked_letter` | `false` | Offer Tracked Letter (34) in rates. |
 | `offer_export_letter` | `false` | Offer Export Letter (UX) in rates; requires issuer `Z12`. |
-| `postnord_standalone_customs_documents` | `false` | Connection default for the shipment option of the same name: attach the standalone CN22 of letter and International Parcel (91) bookings with customs data (see [Customs declarations](#customs-declarations)). |
+| `postnord_standalone_customs_documents` | `false` | Connection default for the shipment option of the same name: attach the standalone customs declaration of letter (CN22) and International Parcel (91, CN23) bookings with customs data (see [Customs declarations](#customs-declarations)). |
 
 Tracked Letter (34) and Export Letter (UX) are rateable catalog services but are withheld from rate results until their `offer_*` toggle is enabled, so the default rate catalog is unchanged until a merchant opts in; Export Letter additionally requires the Sweden issuer (`Z12`). The other letter and registered-mail products (04, 86, LX, RR, RK, RL, RE, RQ) are offered ungated, with PostNord's booking API as their gate.
 
