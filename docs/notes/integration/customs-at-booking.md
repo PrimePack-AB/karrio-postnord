@@ -85,7 +85,9 @@ For parcel-product bookings with customs data, the connector also fetches the st
 The document is attached to `docs.extra_documents` with the category PostNord reports, `customsInvoice` for parcel products.
 Because the invoice is also page 2 of the label printout, the standalone document duplicates it.
 A failed fetch never fails the booking; it is reported as messages next to the shipment details.
-Letter services and, since the CN23 change, International Parcel fetch the standalone declaration only when `postnord_standalone_customs_documents` is set (shipment option, else connection config); by default their declaration is composed into `docs.label` in both PDF and ZPL (openspec change `stamp-embedded-customs-forms`, 2026-09-28).
+Letter services and, since the CN23 change, International Parcel fetch the standalone declaration only when `postnord_standalone_customs_documents` is set (shipment option, else connection config); by default a letter's CN22 is composed into `docs.label` in both PDF and ZPL (openspec change `stamp-embedded-customs-forms`, 2026-09-28).
+
+Ported-note update (2026-10-19): whether PostNord composes International Parcel's CN23 into `docs.label` is unverified; the 91 composition evidence predates the CN23 change, and 91 bookings' documents pass through unverified pending a CN23 capture (see the README's customs section).
 
 ## Example
 
