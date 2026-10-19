@@ -9,7 +9,10 @@ guards would demand.
 """
 
 import datetime
+import re
 import typing
+
+from . import harness
 
 SHIPPER = {
     "address_line1": "Sandhamnsgatan 61",
@@ -171,8 +174,35 @@ def _party(
     )
 
 
+def application_object(environ: typing.Mapping[str, str]) -> typing.Optional[dict]:
+    """The top-level ``application`` object with the configured id, or None.
+
+    The id comes from ``POSTNORD_LIVE_APPLICATION_ID`` (the name the user
+    chose for the real id; the value is non-secret per the repo carve-out),
+    falling back to ``POSTNORD_APPLICATION_ID``. The booking API takes
+    ``applicationId`` as an integer (vendor/booking.swagger.json) and
+    rejects anything but a 4-digit value (SACUS-BR-24100901, observed on
+    the p3-91 customs-less booking), so a present-but-malformed id refuses
+    rather than books. ``name`` stays the required client-integration name
+    the connector's own bookings send.
+    """
+    raw = environ.get("POSTNORD_LIVE_APPLICATION_ID") or environ.get(
+        "POSTNORD_APPLICATION_ID"
+    )
+    if raw is None or raw.strip() == "":
+        return None
+    if re.fullmatch(r"\d{4}", raw.strip()) is None:
+        raise harness.SandboxConfigError(
+            f"{raw!r} is not a 4-digit application id; PostNord rejects "
+            "anything else (SACUS-BR-24100901)"
+        )
+    return {"name": "Karrio", "applicationId": int(raw.strip())}
+
+
 def raw_booking_body(
-    basic_service_code: str, customer_number: str
+    basic_service_code: str,
+    customer_number: str,
+    application: typing.Optional[dict] = None,
 ) -> dict:
     """The minimal ``ediInstruction`` for a booking without any customs branch.
 
@@ -180,12 +210,14 @@ def raw_booking_body(
     envelope with ``testIndicator`` true) but built by hand, so the
     connector's customs fail-fast guards cannot interfere: the question is
     what PostNord itself answers for basicServiceCode 18 and 91 when the
-    customs object is simply absent.
+    customs object is simply absent. ``application`` is injected top-level
+    when given, mirroring the object the connector's mapper serializes.
     """
     return {
         "messageDate": datetime.datetime.now().isoformat(timespec="seconds"),
         "testIndicator": True,
         "updateIndicator": "Original",
+        **({"application": application} if application else {}),
         "shipment": [
             {
                 "shipmentIdentification": {

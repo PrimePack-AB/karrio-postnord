@@ -43,6 +43,14 @@ def offline_session(state_home: pathlib.Path) -> harness.Session:
     return harness.Session(dataclasses.replace(config, enabled=False))
 
 
+def _skipped_case() -> unittest.TestCase:
+    class _skipped(unittest.TestCase):
+        def runTest(self):
+            pass
+
+    return _skipped()
+
+
 class TestGate(unittest.TestCase):
     def test_gate_off_skips(self):
         config = harness.load_config({}, NOW)
@@ -451,6 +459,7 @@ class TestPayloads(unittest.TestCase):
                 body = payloads.raw_booking_body(code, "12345678")
                 self.assertTrue(body["testIndicator"])
                 self.assertEqual(body["updateIndicator"], "Original")
+                self.assertNotIn("application", body)
                 entry = body["shipment"][0]
                 self.assertEqual(entry["service"], {"basicServiceCode": code})
                 self.assertEqual(
@@ -466,3 +475,59 @@ class TestPayloads(unittest.TestCase):
                     entry["parties"]["consignor"]["partyIdentification"],
                     {"partyId": "12345678", "partyIdType": "160"},
                 )
+
+    def test_raw_booking_body_injects_the_application_object(self):
+        body = payloads.raw_booking_body(
+            "91",
+            "12345678",
+            application={"name": "Karrio", "applicationId": 7351},
+        )
+        self.assertEqual(
+            body["application"], {"name": "Karrio", "applicationId": 7351}
+        )
+        self.assertTrue(body["testIndicator"])
+        self.assertNotIn("customsDeclarationCN23", body["shipment"][0])
+
+
+class TestApplicationId(unittest.TestCase):
+    """The p5 application-id gate: absent skips, malformed refuses, valid builds."""
+
+    def test_absent_skips(self):
+        for environment in ({}, {"POSTNORD_APPLICATION_ID": ""}):
+            with self.subTest(environment=environment):
+                self.assertIsNone(payloads.application_object(environment))
+        from .test_p5_no_customs_with_application_raw import require_application
+
+        with self.assertRaises(unittest.SkipTest) as skipped:
+            require_application(_skipped_case(), {})
+        self.assertIn("POSTNORD_LIVE_APPLICATION_ID", str(skipped.exception))
+
+    def test_malformed_refuses(self):
+        for value in ("12345", "12", "abcd", "24 58", "0x58"):
+            with self.subTest(value=value):
+                with self.assertRaises(harness.SandboxConfigError) as refused:
+                    payloads.application_object(
+                        {"POSTNORD_LIVE_APPLICATION_ID": value}
+                    )
+                self.assertIn("4-digit", str(refused.exception))
+
+    def test_valid_id_builds_the_application_object(self):
+        self.assertEqual(
+            payloads.application_object({"POSTNORD_LIVE_APPLICATION_ID": "7351"}),
+            {"name": "Karrio", "applicationId": 7351},
+        )
+        self.assertEqual(
+            payloads.application_object({"POSTNORD_APPLICATION_ID": " 9999 "}),
+            {"name": "Karrio", "applicationId": 9999},
+        )
+
+    def test_live_variable_wins_over_the_fallback(self):
+        self.assertEqual(
+            payloads.application_object(
+                {
+                    "POSTNORD_LIVE_APPLICATION_ID": "7351",
+                    "POSTNORD_APPLICATION_ID": "1111",
+                }
+            ),
+            {"name": "Karrio", "applicationId": 7351},
+        )
