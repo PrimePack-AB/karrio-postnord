@@ -36,6 +36,24 @@ A single test module uses the discover form with a pattern, not a dotted module 
 
 CI (`.github/workflows/tests.yml`) runs the same suite against the fork's `develop` branch, after checking that its SDK provides the document-stamping surface.
 
+## Releasing
+
+Releases are in-development builds published as GitHub releases of this repository only; nothing is published to PyPI or any other index.
+Versions follow CalVer `YYYY.M.N`, where `N` counts releases within the month starting at 1, and each release is tagged `vYYYY.M.N`.
+
+`karrio-ref` under `[tool.primepack]` in `pyproject.toml` names the Joaqim/karrio fork ref a release is tested against.
+It must name a fork snapshot tag (`snapshot-YYYY.MM.DD.N`), not `develop` or a commit sha, because `develop` is regenerated and force-pushed and its shas are not durable.
+Update it in an ordinary commit before cutting a release that needs a newer fork snapshot.
+
+To cut a release, run the release script from a clean checkout of `main`:
+
+```bash
+scripts/release.sh 2026.10.1
+```
+
+The script sets the `[project] version`, commits `chore(release): <version>`, creates the annotated tag `v<version>`, and prints the push command without running it.
+Pushing the tag triggers `.github/workflows/release.yml`, which checks that the tag matches the `pyproject.toml` version (`scripts/check-release-tag.sh`), runs the SDK surface check and the test suite against the fork at `karrio-ref`, and creates the GitHub release with generated notes naming the required fork snapshot.
+
 ## Type checking
 
 `pyright` runs from the repository root with `pyrightconfig.json` (SDK from `../karrio/modules/sdk`, venv `.venv`, Python 3.12).
