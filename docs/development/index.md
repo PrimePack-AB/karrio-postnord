@@ -34,6 +34,9 @@ A single test module uses the discover form with a pattern, not a dotted module 
 .venv/bin/python -m unittest discover -v -f -s tests -p "test_rate.py"
 ```
 
+The PostNord application id and customer numbers are kept only in the gitignored `.env` (variable names in `.env.example`); offline tests and fixtures carry the placeholders `7351` and `20000000`, and the sandbox harness reads the real values from the environment.
+The sandbox captures that carried either value were redacted on 2026-10-20 and their original digests withdrawn from `tests/postnord/fixtures/sandbox/manifest.json` and the probe note's capture table.
+
 CI (`.github/workflows/tests.yml`) runs the same suite against the fork's `develop` branch, after checking that its SDK provides the document-stamping surface.
 
 ### Local PostNord printouts

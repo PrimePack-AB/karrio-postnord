@@ -1,8 +1,9 @@
 """Offline checks on the sandbox evidence fixtures.
 
 The fixtures back the sandbox citations in the probe note
-(docs/notes/sandbox/cn23-composition-sandbox-probe.md): each is a
-byte-identical copy of a capture file named by the manifest. The
+(docs/notes/sandbox/cn23-composition-sandbox-probe.md): each is a copy
+of a capture file named by the manifest, byte-identical except where the
+customer number or application id was replaced by its placeholder. The
 responses and the manifest are committed under fixtures/sandbox/; the
 printouts are PostNord content and stay in the local fixture directory
 (``local_fixtures``), so the checks that read them skip without it. These
@@ -158,13 +159,28 @@ class TestSandboxEvidenceManifest(unittest.TestCase):
         table = note_capture_table()
         pinned = 0
         for entry in manifest()["fixtures"]:
+            if not entry["byte_identical"]:
+                continue
             source = (entry["source_run"], entry["source_file"])
             with self.subTest(fixture=entry["fixture"]):
                 self.assertIn(source, table)
                 self.assertEqual(entry["source_sha256"], table[source])
                 pinned += 1
-        # every fixture, the printouts included, is pinned by the note
-        self.assertEqual(pinned, 8)
+        # every byte-identical fixture, the printouts included, is pinned
+        self.assertEqual(pinned, 6)
+
+    def test_redacted_fixtures_record_no_source_digest(self):
+        table = note_capture_table()
+        redacted = [e for e in manifest()["fixtures"] if not e["byte_identical"]]
+        self.assertEqual(
+            sorted(e["fixture"] for e in redacted),
+            ["p2-invoice-gateway.response.json", "p3-no-customs-raw-18.response.json"],
+        )
+        for entry in redacted:
+            with self.subTest(fixture=entry["fixture"]):
+                self.assertIsNone(entry["source_sha256"])
+                self.assertNotIn((entry["source_run"], entry["source_file"]), table)
+                self.assertIn(b"20000000", fixture_path(entry).read_bytes())
 
     def test_fixture_set_covers_the_probe_rounds(self):
         kinds_by_segment: typing.Dict[str, typing.Set[str]] = {}

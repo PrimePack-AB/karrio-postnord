@@ -7,8 +7,9 @@ should be 4 digit integer", while the p1 mapper booking (which carried an
 p3-91 body unchanged plus a top-level ``application`` object carrying the
 configured 4-digit id, raw, one shot: acceptance with a composed printout
 would be a major finding, as would a customs-data fault naming what the
-customs-less booking is missing. The id is non-secret per the repo
-carve-out and is captured in the request artifact.
+customs-less booking is missing. The id is kept only in ``.env``; the
+request artifact under the state directory carries it, and the committed
+fixtures do not.
 """
 
 import os

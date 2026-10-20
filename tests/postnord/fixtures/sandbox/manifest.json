@@ -2,7 +2,7 @@
  "generator": "sandbox_tests/postnord/evidence.py",
  "probe_note": "docs/notes/sandbox/cn23-composition-sandbox-probe.md",
  "capture_root": "karrio-postnord/sandbox/ below the XDG state root (outside the repository)",
- "redaction_policy": "byte-identical copies of the captured evidence-of-record files; the sandbox customer number, printIds, bookingIds, item ids, the dummy EORI SE5561234711, and applicationId 7351 are artifact values the repo carve-out lets stand; the only secret is the 32-character apikey, which traveled as a query parameter already stripped at capture time — the build fails on any 32-character alphanumeric run the harness redactor's exemptions do not explain, and a PDF's trailer /ID document instance ids are the one binary exception",
+ "redaction_policy": "copies of the captured evidence-of-record files, byte-identical except that the customer number and the application id, kept only in .env, are replaced by the placeholders 20000000 and 7351 (those fixtures record no source digest; the captures' digests were withdrawn on 2026-10-20); printIds, bookingIds, item ids, and the dummy EORI SE5561234711 are artifact values that stand; the 32-character apikey traveled as a query parameter already stripped at capture time — the build fails on any 32-character alphanumeric run the harness redactor's exemptions do not explain, and a PDF's trailer /ID document instance ids are the one binary exception",
  "fixtures": [
   {
    "fixture": "p1-cn23-gateway.response.json",
@@ -42,11 +42,11 @@
    "source_run": "20261019T120356Z",
    "source_file": "001-p2_invoice_gateway.response.parsed.json",
    "source_path": "20261019T120356Z/001-p2_invoice_gateway.response.parsed.json",
-   "source_sha256": "433a1b35205e568e1987fab9f75193e33b807e7c0d55b4f1a9ed8b144e60537a",
+   "source_sha256": null,
    "sha256": "433a1b35205e568e1987fab9f75193e33b807e7c0d55b4f1a9ed8b144e60537a",
-   "byte_identical": true,
+   "byte_identical": false,
    "description": "18 SE to AL commercial customs-invoice booking rejected with SAI-BR-24111201: id allocation precedes customs consideration, so the invoice branch cannot be exercised on this lane.",
-   "notes": "the fault explanation carries the sandbox customer number, an artifact value the repo carve-out lets stand."
+   "notes": "the fault explanation's customer number is replaced by the placeholder 20000000; the capture's digest was withdrawn on 2026-10-20."
   },
   {
    "fixture": "p3-no-customs-raw-18.response.json",
@@ -55,11 +55,11 @@
    "source_run": "20261019T120422Z",
    "source_file": "001-p3_no_customs_raw-18.response.parsed.json",
    "source_path": "20261019T120422Z/001-p3_no_customs_raw-18.response.parsed.json",
-   "source_sha256": "20c60389eca778565cb80ebd0e89820373ef52aa7762d8fd0530be64db86d6b6",
+   "source_sha256": null,
    "sha256": "20c60389eca778565cb80ebd0e89820373ef52aa7762d8fd0530be64db86d6b6",
-   "byte_identical": true,
+   "byte_identical": false,
    "description": "raw minimal 18 booking with no customs and no application object: the same SAI-BR-24111201 allocation fault as p2.",
-   "notes": null
+   "notes": "the fault explanation's customer number is replaced by the placeholder 20000000; the capture's digest was withdrawn on 2026-10-20."
   },
   {
    "fixture": "p3-no-customs-raw-91.response.json",

@@ -19,6 +19,7 @@ P1 and P2 drove the connector's own mapper end to end; P3, P4, and P5 posted raw
 ## Captures
 
 All paths are relative to `~/.local/state/karrio-postnord/sandbox/`; each file is identified by its sha256.
+The captures that carried the customer number or the application id were redacted on 2026-10-20 and their original digests withdrawn; their rows read `redacted-2026-10-20`.
 
 | Run | File | sha256 |
 |---|---|---|
@@ -26,9 +27,9 @@ All paths are relative to `~/.local/state/karrio-postnord/sandbox/`; each file i
 | 20261019T120300Z | `001-p1_cn23_gateway.request.json` | `redacted-2026-10-20` |
 | 20261019T120300Z | `001-p1_cn23_gateway.response.parsed.json` | `7cb296174b6460f6feac5d6ea77922bfa1e2e05887dddbf32cbdea92553b9489` |
 | 20261019T120356Z | `001-p2_invoice_gateway.request.json` | `redacted-2026-10-20` |
-| 20261019T120356Z | `001-p2_invoice_gateway.response.parsed.json` | `433a1b35205e568e1987fab9f75193e33b807e7c0d55b4f1a9ed8b144e60537a` |
+| 20261019T120356Z | `001-p2_invoice_gateway.response.parsed.json` | `redacted-2026-10-20` |
 | 20261019T120422Z | `001-p3_no_customs_raw-18.request.json` | `redacted-2026-10-20` |
-| 20261019T120422Z | `001-p3_no_customs_raw-18.response.parsed.json` | `20c60389eca778565cb80ebd0e89820373ef52aa7762d8fd0530be64db86d6b6` |
+| 20261019T120422Z | `001-p3_no_customs_raw-18.response.parsed.json` | `redacted-2026-10-20` |
 | 20261019T120422Z | `003-p3_no_customs_raw-91.request.json` | `redacted-2026-10-20` |
 | 20261019T120422Z | `003-p3_no_customs_raw-91.response.parsed.json` | `28ddc3fb95c70d203fc4479d2a6cf42ead3739917142648ab6f53c1f14f225c2` |
 | 20261019T121021Z | `001-p5_no_customs_with_application_raw.printout01.pdf` | `04ecd390123e80b5cda907a91317bc708f74a489fd28d2223074196d3fedc6dd` |
@@ -92,7 +93,7 @@ No committed evidence fixture derives from these captures yet, so published docu
 ## Update — 2026-10-19
 
 The two open halves above closed the same day.
-The fixture decision was made 2026-10-19: the evidence of record is committed as redacted fixtures under `tests/postnord/fixtures/sandbox/` with a provenance manifest, each byte-identical to its capture in the table above and checked offline by `tests/postnord/test_sandbox_evidence.py` (commit a476a21).
+The fixture decision was made 2026-10-19: the evidence of record is committed as redacted fixtures under `tests/postnord/fixtures/sandbox/` with a provenance manifest, each byte-identical to its capture in the table above, except the p2 and p3-18 responses, whose customer number is replaced by the placeholder `20000000`, and checked offline by `tests/postnord/test_sandbox_evidence.py` (commit a476a21).
 The two printouts among those captures, `sandbox/p1-cn23-gateway.printout01.pdf` and `sandbox/p5-no-customs-with-application-raw.printout01.pdf`, were removed from this repository's history on 2026-10-20 and are kept locally under `${XDG_STATE_HOME:-~/.local/state}/karrio-postnord/fixtures/` (`POSTNORD_FIXTURES_DIR`), as described in [Local PostNord printouts](../../development/index.md); `manifest.json` records their digests.
 The CN23 stamping seeds were derived from the P1 printout and the verification shipped (commit 1d84fe5): PDF cn23 page-text markers and the `label_cn23/PDF/A4` signature seed, the 91 content check on PDF connector-side through the classifier's kinds with ZPL skipped, and the `postnord_printout_composition_mismatch` attestation across the customs branches.
 The published pages outside this note now carry the sandbox claims, citing those fixtures.
