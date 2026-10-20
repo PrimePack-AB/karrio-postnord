@@ -58,7 +58,7 @@ The success envelope is the bare `bookingResponseCN`, with no wrapper:
 {"bookingId":"ILPN001AWXGPXVKFSFVQLLPLIEAJVV","idInformation":[{"ids":[{"idType":"ITEMID","value":"UX478114854SE","printId":"87a6d74f58854bc1b8be5481ec47f803"}],"status":"OK"}]}
 ```
 
-This live-confirms the shape-tolerant parser fix (`karrio/providers/postnord/customs.py` as imported in root commit 3899da8): the pre-fix code would have silently parsed this envelope to None.
+This live-confirms the shape-tolerant parser fix (`karrio/providers/postnord/customs.py` as imported in root commit 9749134): the pre-fix code would have silently parsed this envelope to None.
 
 ## Standalone retrieval
 

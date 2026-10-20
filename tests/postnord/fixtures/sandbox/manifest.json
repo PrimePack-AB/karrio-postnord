@@ -15,7 +15,7 @@
    "sha256": "7cb296174b6460f6feac5d6ea77922bfa1e2e05887dddbf32cbdea92553b9489",
    "byte_identical": true,
    "description": "91 SE to AL booked through the connector with the mapper-built customsDeclarationCN23: accepted, bookingId and item id allocated, printoutComposition {cn23: 1, label: 1}, and the two SAO-HR-25060301 phone/sms sanitizations under handlingResponse.",
-   "notes": "captured before the printId-retention fix (33d085f): the printId fields hold the <redacted> sentinel and the printout digest list was masked by the pre-fix apikey heuristic (closed for later captures by 32ce7ec); P1's real printId was never retained anywhere and is unrecoverable, so the fixture keeps the sentinel."
+   "notes": "captured before the printId-retention fix (bf5154b): the printId fields hold the <redacted> sentinel and the printout digest list was masked by the pre-fix apikey heuristic (closed for later captures by 72ca1d0); P1's real printId was never retained anywhere and is unrecoverable, so the fixture keeps the sentinel."
   },
   {
    "fixture": "p1-cn23-gateway.printout01.pdf",
@@ -85,7 +85,7 @@
    "sha256": "32dcd1c61e5330274f4c9f73fea39cdf73a68aacdefdecdf28a7decc4a5be288",
    "byte_identical": true,
    "description": "the p3-91 body unchanged plus the top-level application object carrying the configured four-digit application id: accepted, printoutComposition {label: 1} with every customs kind at 0.",
-   "notes": "captured after the printId fix (33d085f), so both printId fields are byte-real; the digest list was still masked (32ce7ec postdates the round)."
+   "notes": "captured after the printId fix (bf5154b), so both printId fields are byte-real; the digest list was still masked (72ca1d0 postdates the round)."
   },
   {
    "fixture": "p5-no-customs-with-application-raw.printout01.pdf",

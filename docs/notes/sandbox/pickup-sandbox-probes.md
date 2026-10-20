@@ -8,7 +8,7 @@ created: 2026-10-13
 *Record of the sandbox probes that shaped the pickup booking request (P1, P2, P2b, P2c).*
 *Ported from the fork (Joaqim/karrio, branch docs-openspec): `docs/notes/postnord/pickup-sandbox-probes.md`, created 2026-10-13, last changed 2026-10-13. Credentials are referenced by environment variable name only; the probe script and captures live outside this repository.*
 
-Record of the sandbox probes for the `feat-postnord-pickup-by-item-id` branch, all run on 2026-10-13 against the `atapi2.postnord.com` test host.
+Record of the sandbox probes for the fork's `feat-postnord-pickup-by-item-id` branch (removed on 2026-10-20), all run on 2026-10-13 against the `atapi2.postnord.com` test host.
 The probe script and the redacted captures live in `~/.local/state/agent-logs/karrio/postnord-pickup-probe/` (`probe.py`, `booking-*.json`, `p1-*.json`, `p2-*.json`, `p2b-*.json`, `p2c-*.json`).
 Request bodies were built by the branch connector (`feat-postnord-pickup-by-item-id`) and POSTed by the script so the HTTP status was observable; responses were parsed with the branch's `parse_pickup_response`.
 Credentials are referenced by environment variable name only (`POSTNORD_APIKEY` and `POSTNORD_CUSTOMER_NUMBER`, loaded through the repository's direnv environment); no application id was sent.

@@ -96,10 +96,10 @@ CATALOG: typing.Tuple[FixtureSpec, ...] = (
             "phone/sms sanitizations under handlingResponse."
         ),
         notes=(
-            "captured before the printId-retention fix (33d085f): the printId "
+            "captured before the printId-retention fix (bf5154b): the printId "
             "fields hold the <redacted> sentinel and the printout digest list "
             "was masked by the pre-fix apikey heuristic (closed for later "
-            "captures by 32ce7ec); P1's real printId was never retained "
+            "captures by 72ca1d0); P1's real printId was never retained "
             "anywhere and is unrecoverable, so the fixture keeps the sentinel."
         ),
     ),
@@ -174,9 +174,9 @@ CATALOG: typing.Tuple[FixtureSpec, ...] = (
             "printoutComposition {label: 1} with every customs kind at 0."
         ),
         notes=(
-            "captured after the printId fix (33d085f), so both printId "
+            "captured after the printId fix (bf5154b), so both printId "
             "fields are byte-real; the digest list was still masked "
-            "(32ce7ec postdates the round)."
+            "(72ca1d0 postdates the round)."
         ),
     ),
     FixtureSpec(
