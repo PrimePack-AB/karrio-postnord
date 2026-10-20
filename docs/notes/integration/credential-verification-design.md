@@ -42,7 +42,7 @@ A probe must never create a shipment, in production or sandbox, to test Booking 
 ## Open questions
 
 Q1 asked whether any side-effect-free, apikey-authorized call exercises the same authorization scope as `POST /v3/edi/labels/pdf`.
-The candidate `GET /v3/edi/labels/manage/health` exists in the vendored booking specification (`vendor/booking.swagger.json`, "Returns the health of the API"), but health endpoints often bypass authentication, so it needs a live test to confirm it is apikey-gated and product-scoped.
+The candidate `GET /v3/edi/labels/manage/health` exists in the booking specification (Booking APIs 3.5.29.1, "Returns the health of the API"), but health endpoints often bypass authentication, so it needs a live test to confirm it is apikey-gated and product-scoped.
 The alternatives the PRD listed were to accept that Booking can only be validated on the first real booking, or to send a deliberately invalid minimal booking and distinguish 403 from 400.
 If the probe cannot distinguish, Booking is reported as `unknown`.
 Q2 asked whether Phase 1 should expose only the proxy method or also a thin REST or GraphQL pass-through.

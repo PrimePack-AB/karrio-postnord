@@ -16,7 +16,7 @@ The script refuses to run when `POSTNORD_APIKEY` equals `POSTNORD_LIVE_APIKEY` o
 ## Method
 
 The connector (as installed on `develop`) serialized a `postnord_parcel` booking (basic service code 18) from Stockholm, SE to Oslo, NO without customs data.
-The script then injected a hand-built `customsInvoice` into `shipment[0]`, the `shipmentCustomsv2` location defined by `vendor/booking.swagger.json`, and posted the body directly so the HTTP status is observable.
+The script then injected a hand-built `customsInvoice` into `shipment[0]`, the `shipmentCustomsv2` location defined by Booking APIs 3.5.29.1, and posted the body directly so the HTTP status is observable.
 
 The invoice followed the design field table and the swagger's required fields:
 

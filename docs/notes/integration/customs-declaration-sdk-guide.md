@@ -46,7 +46,7 @@ Per commodity line: `title` (or `description`) becomes `content`, plus
 `create.py`) before it is sent as the sole `categoryOfItem.categoryType`
 entry.
 Karrio's conventional values map onto PostNord's documented vocabulary
-(`vendor/booking.swagger.json`, categoryOfItem description):
+(Booking APIs 3.5.29.1, categoryOfItem description):
 
 | `customs.content_type` | CN22 `categoryType` |
 |---|---|

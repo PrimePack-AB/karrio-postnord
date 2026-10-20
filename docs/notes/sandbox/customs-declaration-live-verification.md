@@ -44,7 +44,7 @@ A live A/B on the same real booking settles which id each surface keys on:
 | `/v3/customs/declaration` | waybill (item id) with `idType` | request `itemId` camelCase accepted; response echoes `ITEMID` uppercase |
 | shipment references | bookingId | rides as `referenceType: "IL"` |
 
-The by-id result confirms the vendored swagger's `assignedIds.printId` description ("The printId is use to print the label, in the endpoints /v3/labels/ids/(zpl|pdf)") over the item-id-shaped request examples.
+The by-id result confirms the Booking APIs 3.5.29.1 specification's `assignedIds.printId` description ("The printId is use to print the label, in the endpoints /v3/labels/ids/(zpl|pdf)") over the item-id-shaped request examples.
 On by-id responses, `itemIds[].reference` is the references object — `{"item": [], "shipment": [{"referenceNo": ..., "referenceType": ...}]}` — matching the swagger `$ref`, not a string.
 
 ## Post-booking declaration

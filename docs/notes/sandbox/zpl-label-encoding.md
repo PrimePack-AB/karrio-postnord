@@ -21,7 +21,7 @@ base64 only:
 }
 ```
 
-(vendor/booking.swagger.json, definitions.encoding; no enum.)
+(Booking APIs 3.5.29.1, definitions.encoding; no enum.)
 
 A live capture from `POST /rest/shipment/v3/edi/labels/zpl` contradicts
 this: the printout carries `encoding: "none"` with raw UTF-8 ZPL text in

@@ -6,7 +6,7 @@ created: 2026-06-24
 # PostNord connector — swagger ingestion findings
 
 *Synthesis of the multi-agent ingestion pass over the PostNord API specifications, mapped against the connector's known integration gaps.*
-*Ported from the fork (Joaqim/karrio, branch docs-openspec): `docs/notes/postnord/swagger-ingestion-findings.md`, created 2026-06-24, last changed 2026-07-07. The vendored specs referenced live in `vendor/`.*
+*Ported from the fork (Joaqim/karrio, branch docs-openspec): `docs/notes/postnord/swagger-ingestion-findings.md`, created 2026-06-24, last changed 2026-07-07. The specifications referenced were vendored in the fork; they are no longer committed here and are cited by title and version in the citation table in docs/development/index.md.*
 
 Synthesis of a four-agent ingestion pass over the PostNord API specifications, mapped against the connector's known integration gaps.
 Sources ingested, now vendored under `vendor/`: `track-and-trace-v7-findbyreference.swagger.json`, `delivery-options.swagger.json`, `transit-time-v1-v2.swagger.json`, `assign-items-to-loadcarriers.swagger.json`, plus a definitive re-scan of `booking.swagger.json` and the existing `servicepoints-v5.swagger.json`.

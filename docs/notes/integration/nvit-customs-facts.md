@@ -33,7 +33,7 @@ VOEC is a separate regime (Norwegian import VAT, B2C under NOK 3,000, Skatteetat
 | toll.no NVIT page | <https://www.toll.no/no/bedrift/transport-og-tollager/norske-varer-i-transitt> | Per-varelinje data list; NCTS-5 since 2025-01-21 | Fetched 2026-09-22 |
 | postnord.no NVIT article (EN) | <https://www.postnord.no/en/news/new-requirements-for-norwegian-goods-in-transit-nvit/> | Per varelinje, not per sending; HS at least six digits without spaces; channels; never on the parcel; postcode bands; nvit@postnord.com | Fetched 2026-09-22 |
 | postnord.se customs-documents page | <https://www.postnord.se/en/business/import-export-customs/customs-documents-and-shipping-documents> | Commercial invoice requires net and gross weight per goods item and total gross; the invoice is a sufficient basis for PostNord to create the export declaration; CN23 thresholds (at most SEK 2,000 commercial) | Fetched 2026-09-22 |
-| Vendored booking swagger v3.5.29.1 | `vendor/booking.swagger.json` | Field names; `voec` "For import to norway"; `splitShipmentReference` "For export to Norway" (example `21100023_1111111`); endpoints `POST /v3/customs/declaration{,/pdf}` and `/v3/customs/consolidation` | Wire capture |
+| Booking swagger v3.5.29.1 | Booking APIs 3.5.29.1 (development guide citation table) | Field names; `voec` "For import to norway"; `splitShipmentReference` "For export to Norway" (example `21100023_1111111`); endpoints `POST /v3/customs/declaration{,/pdf}` and `/v3/customs/consolidation` | Wire capture |
 | Live verification 2026-09-21 | [customs-declaration-live-verification.md](../sandbox/customs-declaration-live-verification.md) | Booking-time CN22 and post-booking declarations accepted in sandbox and production | Live |
 | Packrooster changelog (third party) | <https://approosters.com/pages/packrooster-changelog> | `reasonForExportation` codes 1000 (sale) and 1040 (return) | Third party |
 | Developer portals | developer, atdeveloper, and guide.postnord.com | JavaScript single-page apps; official field descriptions are not fetchable without a portal application key | Limitation |
@@ -43,7 +43,7 @@ Which declaration branch PostNord expects for NVIT flows was never confirmed by 
 
 ## Declaration branch capability matrix
 
-Evidence is the generated schemas plus the vendored swagger; all three branches attach at the shipment element.
+Evidence is the generated schemas plus the Booking APIs 3.5.29.1 specification; all three branches attach at the shipment element.
 The last row reflects the connector as of 2026-09-22 and is superseded by the current status section below.
 
 | Capability | CN22 | CN23 | customsInvoice |
