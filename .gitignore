@@ -8,3 +8,4 @@ build/
 !.env.example
 !.envrc
 logs/
+vendor/

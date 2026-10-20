@@ -73,5 +73,35 @@ Never edit the generated modules by hand.
 ## Citing PostNord documentation
 
 The developer guide at <https://guide.developer.postnord.com/> is a JavaScript single-page application, and the PDFs it links return the portal shell to plain fetching.
-Cite it by page path and access date (for example "guide.developer.postnord.com, Shipment / Booking / Booking APIs v3 / Book Pickups, accessed 2026-10-13"), and never re-vendor its PDFs.
-The vendored API specifications under `vendor/` are a snapshot (2026-09); when PostNord publishes a new spec version, re-vendor deliberately and note the change.
+Cite it by page path and access date (for example "guide.developer.postnord.com, Shipment / Booking / Booking APIs v3 / Book Pickups, accessed 2026-10-13").
+
+PostNord's API specifications and manuals are cited, not committed.
+They carry no licence permitting redistribution, and PostNord's General Terms and Conditions for digital integration services (valid from 2025-06-13, linked from the developer portal) reserve all intellectual property rights in the Services and in "other information and material on PostNord’s websites" to the PostNord Group.
+Code, tests, and notes cite a specification by its title and `info.version`, and a manual by its title, using the table below.
+
+### API specifications and manuals
+
+The connector was developed against the documents in this table.
+Their SHA-256 digests identify the exact copies used, so a newly downloaded copy can be compared before relying on a claim that cites it.
+They were first committed to the Joaqim/karrio fork on 2026-06-24 (Track & Trace v7 FindByIdentifier on 2026-06-29), carried into this repository on 2026-10-13, and removed on 2026-10-20; they remain in this repository's public git history before that removal.
+
+| Local path | Title | Version | SHA-256 |
+|------------|-------|---------|---------|
+| `vendor/booking.swagger.json` | Booking APIs (Swagger 2.0) | 3.5.29.1 | `e2e90f675741dbadf7b4a9e05bc8ff53eb5008dd65ca7a660e3f8670a41e9ab9` |
+| `vendor/assign-items-to-loadcarriers.swagger.json` | Assign Items To LoadCarriers (OpenAPI 3.0.1) | 1.0.1.1 | `34d03a460e135c8c721e8faa90119a9c46c404097278dc17fee023f0e76f07cf` |
+| `vendor/delivery-options.swagger.json` | Delivery Options (OpenAPI 3.0.1) | 3.4.3 | `c913d7f16f543c338658d20009c3209beea06ed0244a61afc7e7549542c6d3df` |
+| `vendor/servicepoints-v5.swagger.json` | Service Points V5 (OpenAPI 3.0.0) | 5.0.14 | `9850c375dbb395322fa322446f403159e56fa5d300faeec13839090a9cd32462` |
+| `vendor/track-and-trace-v7-findbyidentifier.swagger.json` | PostNord Track & Trace API v7 - FindByIdentifier - Public (OpenAPI 3.0.1) | 1.0.1 | `bcbddad79504b35014f51c44f3075e0b5884dc4c75374e973266a4ef17bbacad` |
+| `vendor/track-and-trace-v7-findbyreference.swagger.json` | PostNord Track & Trace API v7 - FindByReference - Public (OpenAPI 3.0.1) | 1.0.0 | `cfe7dabc0347bf5b9fd3e13ee88d84c3fe6649332a0f5368b3d130a30d61a128` |
+| `vendor/tracking-url.swagger.json` | Track Shipment URL (Swagger 2.0) | 1.0.2 | `1c07923b65177aaa54117a9eb815aeb7676e095d272404952e51b6afe1b9082f` |
+| `vendor/transit-time-v1-v2.swagger.json` | Transit time calculation V1 and V2 (OpenAPI 3.0.1) | 2.0.3 | `cd629a5e1c1ba3d74fa1deb89e1301ea568d210e9432091652f91740c5b0a628` |
+| `vendor/docs/general-descriptions.pdf` | General Descriptions (EDI shipping instructions message; 32 pages, PDF created 2020-06-12) | none stated | `719c525397c3b7a39515750891f9da68d19958d27c7217b6c67f87bef32e9443` |
+
+The specifications are published on the PostNord developer portal, <https://developer.postnord.com/>, under APIs / Active APIs, where each API's card offers a "Raw Swagger" download.
+The portal serves the current version, which can differ from the version in the table; the title and version are in the specification's `info` object.
+Where the General Descriptions manual was downloaded from is not recorded.
+The developer portal's EDI documentation store held later editions titled "General Description EDI" (v2022.5, v2023.1, v2023.5) when checked on 2026-10-20, none byte-identical to this copy; PostNord customer integration (kundintegration@postnord.com, the contact named in the Delivery Options specification) is the contact for a specific edition.
+
+To keep local copies for development, save them under the local paths in the table.
+`vendor/` is listed in `.gitignore`, so the files stay out of commits; check a copy with `sha256sum vendor/booking.swagger.json` against the table.
+When PostNord publishes a new specification version, record its title, version, and digest here and reconcile the notes and code comments that cite the earlier version.

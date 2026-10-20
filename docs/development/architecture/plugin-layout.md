@@ -35,5 +35,4 @@ They have no runtime effect and are excluded from the wheel by `[tool.setuptools
 | `karrio/providers/postnord/` | connector logic: `units.py` (catalog, gates, customs enums), `rate.py`, `shipment/create.py` (booking, customs builders, fail-fast checks), `shipment/cancel.py`, `pickup/`, `tracking.py`, `customs.py` (declaration proxy), `service_points.py`, `stamping.py`, `error.py`, `utils.py` |
 | `karrio/schemas/postnord/` | generated request/response types (never edit; regenerate via `./generate`) |
 | `schemas/` | the JSON schema sources the generator reads |
-| `vendor/` | PostNord API specification snapshot (2026-09) |
 | `tests/postnord/` | the unittest suite and fixtures |
