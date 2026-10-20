@@ -76,7 +76,8 @@ The developer guide at <https://guide.developer.postnord.com/> is a JavaScript s
 Cite it by page path and access date (for example "guide.developer.postnord.com, Shipment / Booking / Booking APIs v3 / Book Pickups, accessed 2026-10-13").
 
 PostNord's API specifications and manuals are cited, not committed.
-They carry no licence permitting redistribution, and PostNord's General Terms and Conditions for digital integration services (valid from 2025-06-13, linked from the developer portal) reserve all intellectual property rights in the Services and in "other information and material on PostNord’s websites" to the PostNord Group.
+They carry no license permitting redistribution.
+PostNord's [General Terms and Conditions for digital integration services](https://developer.postnord.com/pdf/General_Terms_and_Conditions_for_digital_integration_services_from20250613.pdf) (valid from 2025-06-13, retrieved 2026-10-20) state that intellectual property rights in the Services and in "other information and material on PostNord’s websites, are owned by PostNord or other companies within the PostNord Group (or rights holders represented by PostNord)", and grant no rights beyond those expressly stated.
 Code, tests, and notes cite a specification by its title and `info.version`, and a manual by its title, using the table below.
 
 ### API specifications and manuals
