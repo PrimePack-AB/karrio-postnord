@@ -8,7 +8,7 @@ created: 2026-09-28
 *Design history for a connector-local, per-product `validate_credentials` probe; never implemented.*
 *Ported from the fork (Joaqim/karrio, branch docs-openspec): `docs/notes/postnord/credential-verification-design.md`, created 2026-09-28, last changed 2026-09-28.*
 
-Provenance: extracted from `PRDs/PRD_POSTNORD_CREDENTIAL_VERIFICATION.md` on branch `backup-develop-2026-09-24` (last commit `884cdf58a`, PRD dated 2026-06-25, status Planning).
+Provenance: extracted from `PRDs/PRD_POSTNORD_CREDENTIAL_VERIFICATION.md` on branch `backup-develop-2026-09-24` (removed from the fork on 2026-10-20; last commit `884cdf58a`, PRD dated 2026-06-25, status Planning).
 
 This is design history and is not implemented.
 As of `develop` at `ecb449c43` (2026-09-28) the connector has no `validate_credentials` method, and the upstream-bound `PRDs/PRD_POSTNORD_INTEGRATION.md` carries only a short "Per-product credential verification" stub under Future Work.

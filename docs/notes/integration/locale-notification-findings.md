@@ -8,7 +8,7 @@ created: 2026-09-28
 *Findings on the booking and tracking locale parameters and the notification additional services.*
 *Ported from the fork (Joaqim/karrio, branch docs-openspec): `docs/notes/postnord/locale-notification-findings.md`, created 2026-09-28, last changed 2026-09-28. Specification line numbers refer to the versions in the citation table in docs/development/index.md.*
 
-Provenance: extracted from `PRDs/POSTNORD_LOCALE_CONTINUITY.md` on branch `backup-develop-2026-09-24` (last commit `8d98d4b1d`, verification log dated 2026-09-03).
+Provenance: extracted from `PRDs/POSTNORD_LOCALE_CONTINUITY.md` on branch `backup-develop-2026-09-24` (removed from the fork on 2026-10-20; last commit `8d98d4b1d`, verification log dated 2026-09-03).
 Code references were verified against `develop` at `ecb449c43` on 2026-09-28.
 
 ## Open question Q1b: does the Track & Trace locale reach carrier notifications?

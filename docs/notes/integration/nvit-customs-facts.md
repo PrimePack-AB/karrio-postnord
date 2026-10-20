@@ -8,7 +8,7 @@ created: 2026-09-28
 *Fact sheet on the Norwegian goods-in-transit (NVIT) customs regime and the connector's per-branch capability against it.*
 *Ported from the fork (Joaqim/karrio, branch docs-openspec): `docs/notes/postnord/nvit-customs-facts.md`, created 2026-09-28, last changed 2026-09-28.*
 
-Provenance: extracted from `PRDs/POSTNORD_NVIT_CUSTOMS.md` on branch `backup-develop-2026-09-24` (last commit `144943753`, PRD dated 2026-09-22); the upstream-bound summary lived in the Future Work section of `PRDs/PRD_POSTNORD_INTEGRATION.md`.
+Provenance: extracted from `PRDs/POSTNORD_NVIT_CUSTOMS.md` on branch `backup-develop-2026-09-24` (removed from the fork on 2026-10-20; last commit `144943753`, PRD dated 2026-09-22); the upstream-bound summary lived in the Future Work section of `PRDs/PRD_POSTNORD_INTEGRATION.md`.
 The "Current connector status" section was verified against `develop` at `ecb449c43` on 2026-09-28.
 
 ## Fact sheet

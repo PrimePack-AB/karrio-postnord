@@ -8,7 +8,7 @@ created: 2026-09-25
 *Consumer-facing summary of how unified `customs` data becomes the booking request's customs structure.*
 *Ported from the fork (Joaqim/karrio, branch docs-openspec): `docs/notes/postnord/customs-at-booking.md`, created 2026-09-25, last changed 2026-09-28. Sandbox evidence: `../sandbox/customs-invoice-live-verification.md`; CN22 evidence: `../sandbox/customs-declaration-live-verification.md`.*
 
-Consumer-facing summary of how the PostNord connector turns unified `customs` data into the booking request, as implemented for the `nordic-customs-invoice-mapping` OpenSpec change on branch `feat-postnord-customs-invoice`.
+Consumer-facing summary of how the PostNord connector turns unified `customs` data into the booking request, as implemented for the `nordic-customs-invoice-mapping` OpenSpec change on branch `feat-postnord-customs-invoice` (removed from the fork on 2026-10-20).
 
 ## Product groups
 

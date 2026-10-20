@@ -46,7 +46,7 @@ PostNord accepted it: `bookingId` `ILPN0010LBQRBGFFMCWLWZDUNDFQVS`, item id and 
 The `printoutComposition` was `{cn23: 1, label: 1}`, and the single printout is one two-page A4 PDF: page 1 the "International Parcel" label (`Item-ID`), page 2 the CN23 — the "Customs Declaration" heading, "Office of origin", the sender's certification box, and the "May be opened" inspection strip all present in the extracted text.
 Two `SAO-HR-25060301` faults came back under `handlingResponse`: the consignee `phoneNo` and `smsNo` were removed as invalidly formatted for E.164 (original to `REMOVED`), a sanitization rather than a rejection.
 The karrio parse returned tracking number `CC613724769SE`, meta `printout_composition` `[cn23, label]`, and empty `extra_documents` — the standalone customs documents opt-in was deliberately left off.
-This is the headline: the fork's CN23 booking shape is sandbox-accepted with captured evidence for the first time — the zero-`postalCharges` acceptance claim in `_customs_declaration_cn23`'s docstring (fork commit 875debc8e, carried here by the extraction) now has a capture — and PostNord composes `{label: 1, cn23: 1}` for it in test mode.
+This is the headline: the fork's CN23 booking shape is sandbox-accepted with captured evidence for the first time — the zero-`postalCharges` acceptance claim in `_customs_declaration_cn23`'s docstring (carried here by the extraction, root commit 3899da8) now has a capture — and PostNord composes `{label: 1, cn23: 1}` for it in test mode.
 That PDF is the first CN23-composed capture anywhere in this project or the fork, and it is the candidate source for deriving CN23 stamping seeds.
 
 ## P2 — customs-invoice parcel rejected (12:03:56 UTC)

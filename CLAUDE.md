@@ -10,7 +10,7 @@
 
 ## Fork SDK floor
 - The connector is fork-coupled: it uses the document-stamping `PluginMetadata` fields that exist only in the Joaqim/karrio fork's SDK, so upstream karrio cannot import it. `dependencies = ["karrio"]` is plain because no pip-solvable fork ref exists; dev/test run against `-e ../karrio/modules/sdk`, CI against the fork's `develop`
-- The requirement is stated by capability, not commit: the SDK must provide `PluginMetadata.stamp_seeds` and `PluginMetadata.document_sections` together with `karrio.lib.StampSeed`, `StampPlacement`, `AnyOf`, `CustomsComposition`, and `classify_customs_composition`. `develop` is regenerated and force-pushed, so its shas are not durable; CI checks these names by import before the suite runs (last verified at develop a7355a5c8 on 2026-10-19, whose modules/sdk tree matches the extraction base 65468d813)
+- The requirement is stated by capability, not commit: the SDK must provide `PluginMetadata.stamp_seeds` and `PluginMetadata.document_sections` together with `karrio.lib.StampSeed`, `StampPlacement`, `AnyOf`, `CustomsComposition`, and `classify_customs_composition`. `develop` is regenerated and force-pushed, so its shas are not durable; CI checks these names by import before the suite runs (last verified at develop a7355a5c8 on 2026-10-19, whose modules/sdk tree matches that of the extraction base imported in root commit 3899da8)
 - A git+https SDK install cannot replace the checkout: pip recursively fetches the monorepo's private submodules that modules/sdk does not need
 
 ## Pyright baseline
@@ -45,7 +45,7 @@
 - docs/notes/ holds the ported working notes (fork provenance in each header); it is excluded from the site, and its README.md is the index
 
 ## Current State
-- 2026-10-13: extracted from the fork's develop union 65468d813 as a standalone plugin (single-root import; the fork retains provenance); version 2026.10
+- 2026-10-13: extracted from the fork's develop union 65468d813 as a standalone plugin (single-root import as 3899da8; 65468d813 is not reachable from any fork ref as of 2026-10-20); version 2026.10
 - 2026-10-13: offer_* letter gates restored (34 tracked letter, UX export letter) — fail-closed, UX needs issuer Z12; default rate catalog omits both (deliberate reversal of the fork's cf7ad467a drop)
 - 2026-10-13: International Parcel (91) books CN23 unconditionally; 91 documents still pass through unstamped (the stamping seeds and classifier verify CN22 only)
 - 2026-10-13: docs/notes ported from the fork (integration/ + sandbox/, index in docs/notes/README.md); Starlight pages distilled without sandbox claims (no committed fixtures yet); docs-pages workflow pins harness v1.3 (6a9f84b)
