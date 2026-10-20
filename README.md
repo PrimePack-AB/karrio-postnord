@@ -309,3 +309,15 @@ Regenerate the `karrio/schemas/postnord` modules after editing `schemas/*.json` 
 ```bash
 ROOT=../karrio ./generate
 ```
+
+## License
+
+Copyright (c) 2026 PrimePack AB.
+This Karrio Connector Plugin is distributed under the GNU Lesser General Public License v3.0; see [LICENSE](LICENSE).
+
+## Trademarks and affiliation
+
+PrimePack AB is not affiliated with, endorsed by, or sponsored by PostNord or any of its subsidiaries.
+PrimePack AB does not own karrio and is not affiliated with Karrio Inc.
+PostNord and karrio are names or trademarks of their respective owners and are used only to identify the carrier and the SDK this plugin works with.
+The PostNord API specifications are not included in this repository; see [the development guide](docs/development/index.md#api-specifications-and-manuals) for where to obtain them.

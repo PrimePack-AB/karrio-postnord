@@ -47,3 +47,10 @@ The development pages are for working on the connector itself: setup, tests, and
 - [Development](development/index.md)
 - [Plugin layout](development/architecture/plugin-layout.md)
 - [Documentation site](development/architecture/docs-site.md)
+
+## License and affiliation
+
+The connector is copyright 2026 PrimePack AB and distributed under the GNU Lesser General Public License v3.0; see [LICENSE](https://github.com/PrimePack-AB/karrio-postnord/blob/main/LICENSE).
+PrimePack AB is not affiliated with, endorsed by, or sponsored by PostNord or any of its subsidiaries, and does not own karrio or have any affiliation with Karrio Inc.
+PostNord and karrio are names or trademarks of their respective owners, used only to identify the carrier and the SDK the connector works with.
+The PostNord API specifications are not included; the [development guide](development/index.md#api-specifications-and-manuals) cites them and says where to obtain them.
