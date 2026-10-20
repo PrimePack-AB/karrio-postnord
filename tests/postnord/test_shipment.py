@@ -24,7 +24,7 @@ from .fixture import (
     gateway_with_language,
     gateway_with_standalone_customs,
 )
-from .test_cn22_stamping import _read_b64
+from . import synthetic_printouts
 
 
 class TestPostNordShipment(unittest.TestCase):
@@ -1769,7 +1769,7 @@ class TestPostNordLabelComposition(unittest.TestCase):
         self.assertEqual(details.meta["printout_composition"], ["cn22", "label"])
 
     def test_international_parcel_cn23_labels_pass_verification(self):
-        # The committed test-mode capture composes the label and the CN23:
+        # The test-mode capture's layout composes the label and the CN23:
         # the PDF verifies its content against the CN23 page-text markers,
         # and both formats attest the declared composition in silence. The
         # ZPL content check skips the format (no ZPL CN23 capture exists).
@@ -4564,25 +4564,24 @@ def _customs_booking_zpl(zpl: str) -> str:
     return CustomsBookingZPLResponse.replace(_zpl_json(RawZPL), _zpl_json(zpl))
 
 
-# Live export letter (UX) printouts: the label composed with the CN22 as one
-# PDF page and one ZPL format, and the lone CN22 ZPL.
-CombinedLabelPDF = _read_b64("postnord_label_cn22_printid.pdf")
-CombinedLabelZPL = base64.b64decode(
-    _read_b64("postnord_label_cn22_booking.zpl")
-).decode("utf-8")
-LoneCN22ZPL = base64.b64decode(_read_b64("postnord_cn22.zpl")).decode("utf-8")
+# Synthetic stand-ins for the captured printouts, which stay outside the
+# repository (tests/postnord/local_fixtures.py): the export letter (UX)
+# label composed with the CN22 as one PDF page and one ZPL format, and the
+# lone CN22 ZPL.
+CombinedLabelPDF = synthetic_printouts.COMBINED_LABEL_PDF
+CombinedLabelZPL = synthetic_printouts.COMBINED_LABEL_ZPL
+LoneCN22ZPL = synthetic_printouts.LONE_CN22_ZPL
 BlankPDF = _blank_pdf()
 
-# Sandbox export letter (UX) PDF booking (2026-09-28): page 1 the tracked
-# letter label, page 2 the upright CN22.
-TwoPageLabelPDF = _read_b64("postnord_label_cn22_booking_two_pages.pdf")
+# The export letter (UX) PDF booking layout: page 1 the tracked letter
+# label, page 2 the upright CN22.
+TwoPageLabelPDF = synthetic_printouts.TWO_PAGE_LABEL_PDF
 
-# Live International Parcel (91) bookings (2026-09-28): the ZPL carries the
-# parcel label and the upright CN22 V2 as two formats, the PDF as two pages.
-InternationalParcelLabelZPL = base64.b64decode(
-    _read_b64("postnord_label_cn22_international_parcel.zpl")
-).decode("utf-8")
-InternationalParcelLabelPDF = _read_b64("postnord_label_cn22_international_parcel.pdf")
+# The International Parcel (91) composed with a CN22, as the 2026-09-28
+# bookings were: the ZPL carries the parcel label and the upright CN22 V2
+# as two formats, the PDF as two pages.
+InternationalParcelLabelZPL = synthetic_printouts.INTERNATIONAL_PARCEL_LABEL_ZPL
+InternationalParcelLabelPDF = synthetic_printouts.INTERNATIONAL_PARCEL_CN22_PDF
 InternationalParcelParcelLabelZPL = InternationalParcelLabelZPL[
     : InternationalParcelLabelZPL.index("^XZ") + len("^XZ")
 ]
@@ -4598,13 +4597,13 @@ CombinedBookingNoPrintIdResponse = CustomsBookingNoPrintIdResponse.replace(
     '"data": "JVBERi0xLjQK"', f'"data": "{CombinedLabelPDF}"'
 )
 
-# The committed CN23-composition sandbox capture (2026-10-19, P1): a 91
+# The CN23-composition layout of the 2026-10-19 sandbox capture (P1): a 91
 # SE→AL booking whose two-page A4 PDF composes the parcel label and the
 # CN23, printoutComposition {cn23: 1, label: 1}, replayed as a booking
 # response. No ZPL CN23 printout exists, so the ZPL sibling declares the
 # same attested composition around a plain parcel label: it covers the
 # attestation and the by-id fetch while the content check skips the format.
-CN23LabelPDF = _read_b64("sandbox/p1-cn23-gateway.printout01.pdf")
+CN23LabelPDF = synthetic_printouts.INTERNATIONAL_PARCEL_CN23_PDF
 CN23BookingResponse = _customs_booking_pdf(CN23LabelPDF).replace(
     '"label": 1, "cn22": 1', '"label": 1, "cn23": 1'
 )
@@ -4618,8 +4617,8 @@ CN23BookingNoCompositionZPLResponse = _customs_booking_zpl(
 ).replace(',\n    "printoutComposition": {"label": 1, "cn22": 1}\n', "\n")
 
 # Booking responses and their returned labels per declaration-structured
-# service: the letters compose a CN22, International Parcel the captured
-# CN23 composition (PDF) or its ZPL stand-in.
+# service: the letters compose a CN22, International Parcel the CN23
+# composition (PDF) or its ZPL stand-in.
 DECLARATION_BOOKINGS = {
     "postnord_export_letter": {
         "PDF": (CombinedBookingResponse, CombinedLabelPDF),

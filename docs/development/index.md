@@ -36,6 +36,31 @@ A single test module uses the discover form with a pattern, not a dotted module 
 
 CI (`.github/workflows/tests.yml`) runs the same suite against the fork's `develop` branch, after checking that its SDK provides the document-stamping surface.
 
+### Local PostNord printouts
+
+The label and customs printouts PostNord returned to bookings and by-id fetches are content returned from the Services, which PostNord's [General Terms and Conditions for digital integration services](https://developer.postnord.com/pdf/General_Terms_and_Conditions_for_digital_integration_services_from20250613.pdf) (clause 6) do not permit distributing, so the repository does not track them; they were removed from its history on 2026-10-20.
+The measurement, stamping-seed, and sandbox-evidence tests read them from a local directory, `$POSTNORD_FIXTURES_DIR` if set and otherwise `${XDG_STATE_HOME:-~/.local/state}/karrio-postnord/fixtures/`, laid out as below (`tests/postnord/local_fixtures.py`).
+Those tests skip when any of the ten files is absent, which is the case in CI.
+The booking-path tests in `tests/postnord/test_shipment.py` run everywhere: they use synthetic printouts built at test time (`tests/postnord/synthetic_printouts.py`) that carry only the section markers the connector declares in `DOCUMENT_SECTIONS`.
+
+| Local path | Origin | SHA-256 |
+|------------|--------|---------|
+| `postnord_cn22.pdf` | sandbox by-printId fetch with `definePrintout=onlyCustomsDeclarations`, export letter (UX), 2026-09 | `88ea55beb26586d85efbf3fe388994386322e668f6a055b80ac77f3ffb170675` |
+| `postnord_cn22.zpl` | lone CN22 ZPL, export letter (UX), 2026-09 | `16a0b1a8a16174574f4d6a4b205148eaf3d4f6967c4202ad1e15dac41c0934da` |
+| `postnord_label_cn22_booking.zpl` | live export letter (UX) booking, ZPL | `db80341e2dae1e3b9a60fa722e47ce4a348db603acc073484bed2299f54b3273` |
+| `postnord_label_cn22_printid.zpl` | live export letter (UX) by-printId fetch without `definePrintout`, ZPL | `185babb5b767b24d86388f88601e17527de6b814a31b93e9e827e8728911d885` |
+| `postnord_label_cn22_printid.pdf` | the same by-printId fetch, PDF | `a85b74f1b10cf27a8a25814d3e61321b4f0665864666d699a5a08d3a845e01a0` |
+| `postnord_label_cn22_booking_two_pages.pdf` | sandbox export letter (UX) PDF booking, 2026-09-28 | `f10f333bcd821648abbcb29ea12d7eb6c7903df2150863334eccccc15f42df0d` |
+| `postnord_label_cn22_international_parcel.zpl` | live International Parcel (91) booking, 2026-09-28, ZPL | `90f689ee030c6efb11dd9b33d580d3ff603fc0175f1bbb24a20025f108bd35d6` |
+| `postnord_label_cn22_international_parcel.pdf` | International Parcel (91) capture, 2026-09-28, PDF (source call not recorded) | `fb6762cd25807625595413ab3fe4d205b90409b39a25126225590c3acc38f844` |
+| `sandbox/p1-cn23-gateway.printout01.pdf` | test-mode probe P1, 2026-10-19 | `0b5e7ae9ad4ad90c52554c824ca5a6bb14bc78d64ac31314e4a586b625e65e66` |
+| `sandbox/p5-no-customs-with-application-raw.printout01.pdf` | test-mode probe P5, 2026-10-19 | `04ecd390123e80b5cda907a91317bc708f74a489fd28d2223074196d3fedc6dd` |
+
+The captures behind the first eight are described in [booking-printout-composition-verification.md](../notes/sandbox/booking-printout-composition-verification.md); copies are held by the maintainers, and a new capture needs a PostNord booking.
+The two `sandbox/` printouts are rebuilt from the probe captures under `karrio-postnord/sandbox/` below the state root by `.venv/bin/python -m sandbox_tests.postnord.evidence`, which writes the printouts to the local directory and the responses and `manifest.json` to `tests/postnord/fixtures/sandbox/`.
+Check a copy with `sha256sum` against the table, or run the suite and confirm that nothing is skipped.
+The fixture paths under `tests/postnord/fixtures/` are listed in `.gitignore`, so a copy placed there by mistake stays out of commits.
+
 ## Releasing
 
 Releases are in-development builds published as GitHub releases of this repository only; nothing is published to PyPI or any other index.

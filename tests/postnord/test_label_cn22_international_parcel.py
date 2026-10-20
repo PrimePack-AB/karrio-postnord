@@ -20,6 +20,7 @@ from pypdf.generic import ContentStream
 import karrio.lib as lib
 import karrio.core.models as models
 
+from postnord import local_fixtures
 from postnord.test_cn22_stamping import (
     KEYWORD,
     _decode_zpl,
@@ -161,6 +162,7 @@ def _assert_dots_within(test, bounds, region, tolerance=0.5):
 
 
 class TestInternationalParcelFixtures(unittest.TestCase):
+    @local_fixtures.required
     def test_zpl_fixture_is_a_label_format_then_an_upright_cn22_format(self):
         stream = _zpl_stream(ZPL_FIXTURE)
         label, cn22 = _formats(stream)
@@ -179,6 +181,7 @@ class TestInternationalParcelFixtures(unittest.TestCase):
         for marker in ZPL_LABEL_MARKERS:
             self.assertNotIn(marker, cn22)
 
+    @local_fixtures.required
     def test_zpl_cn22_format_carries_the_measured_upright_layout(self):
         _, cn22 = _formats(_zpl_stream(ZPL_FIXTURE))
 
@@ -192,6 +195,7 @@ class TestInternationalParcelFixtures(unittest.TestCase):
         self.assertEqual(font, "^CF0,18,18")
 
 
+    @local_fixtures.required
     def test_pdf_fixture_is_a_parcel_label_page_then_a_cn22_page(self):
         document = _document(PDF_FIXTURE, "PDF")
         pages = _pdf_pages(document.base64)
@@ -211,6 +215,7 @@ class TestInternationalParcelFixtures(unittest.TestCase):
 
 
 class TestInternationalParcelMarkers(unittest.TestCase):
+    @local_fixtures.required
     def test_zpl_label_markers_occur_in_no_cn22_section_of_any_fixture(self):
         for name in ALL_ZPL_FIXTURES:
             for index, section in enumerate(_formats(_zpl_stream(name))):
@@ -230,6 +235,7 @@ class TestInternationalParcelMarkers(unittest.TestCase):
                     for label_marker in ZPL_LABEL_MARKERS:
                         self.assertNotIn(label_marker, cn22_section)
 
+    @local_fixtures.required
     def test_zpl_cn22_markers_occur_in_no_label_only_format(self):
         for name in ALL_ZPL_FIXTURES:
             for index, section in enumerate(_formats(_zpl_stream(name))):
@@ -242,6 +248,7 @@ class TestInternationalParcelMarkers(unittest.TestCase):
                     for marker in ZPL_CN22_MARKERS:
                         self.assertNotIn(marker, section[label_start:])
 
+    @local_fixtures.required
     def test_international_parcel_markers_occur_on_no_cn22_page(self):
         cn22_pages = 0
         for name in ALL_PDF_FIXTURES:
@@ -259,6 +266,7 @@ class TestInternationalParcelMarkers(unittest.TestCase):
 
 
 class TestInternationalParcelClassification(unittest.TestCase):
+    @local_fixtures.required
     def test_zpl_fixture_classifies_as_label_cn22(self):
         result = lib.classify_customs_composition(
             _document(ZPL_FIXTURE, "ZPL"), carrier="postnord"
@@ -266,6 +274,7 @@ class TestInternationalParcelClassification(unittest.TestCase):
 
         self.assertEqual(result, COMBINED)
 
+    @local_fixtures.required
     def test_pdf_fixture_classifies_as_label_cn22_on_page_two(self):
         result = lib.classify_customs_composition(
             _document(PDF_FIXTURE, "PDF"), carrier="postnord"
@@ -278,6 +287,7 @@ class TestInternationalParcelClassification(unittest.TestCase):
             page=2,
         ))
 
+    @local_fixtures.required
     def test_zpl_label_format_alone_is_not_customs_bearing(self):
         label, _ = _formats(_zpl_stream(ZPL_FIXTURE))
         document = models.ShippingDocument(
@@ -298,6 +308,7 @@ class TestInternationalParcelZplStamp(unittest.TestCase):
         self.assertLess(ROTATED_KEYWORD_INK_END_Y, STRIP_LABEL_DOTS[1][0])
         self.assertLessEqual(V2_BOX_BOTTOM_RULE_ROW, V2_LABEL_LENGTH)
 
+    @local_fixtures.required
     def test_stamp_is_inserted_into_the_cn22_format_in_its_signature_area(self):
         document, result, stamped = _stamp(ZPL_FIXTURE, "ZPL")
         original = _zpl_stream(ZPL_FIXTURE)
@@ -320,6 +331,7 @@ class TestInternationalParcelZplStamp(unittest.TestCase):
         self.assertLessEqual(field[1] + height, V2_LABEL_LENGTH)
         self.assertLessEqual(field[1] + height - 1, V2_BOX_BOTTOM_RULE_ROW - 1)
 
+    @local_fixtures.required
     def test_rotated_letter_cn22_still_stamps_in_its_measured_strip(self):
         for name in COMBINED_ZPL_FIXTURES:
             with self.subTest(fixture=name):
@@ -363,6 +375,7 @@ class TestInternationalParcelPdfStamp(unittest.TestCase):
         form = page["/Resources"]["/XObject"]["/Form2"].get_object()
         return page, form
 
+    @local_fixtures.required
     def test_page_two_landmarks(self):
         page, form = self._page()
         runs = _text_runs(page)
@@ -411,6 +424,7 @@ class TestInternationalParcelPdfStamp(unittest.TestCase):
             PARCEL_FORM_ORIGIN_PT[0] + PARCEL_KEYWORD_TM_PT[0],
         )
 
+    @local_fixtures.required
     def test_classified_pdf_stamps_page_two_in_the_signature_area(self):
         document, result, stamped = _stamp(PDF_FIXTURE, "PDF")
         overlays = _overlays(stamped.base64, 2)

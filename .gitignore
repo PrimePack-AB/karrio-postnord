@@ -9,3 +9,6 @@ build/
 !.envrc
 logs/
 vendor/
+tests/postnord/fixtures/*.pdf
+tests/postnord/fixtures/*.zpl
+tests/postnord/fixtures/sandbox/*.pdf

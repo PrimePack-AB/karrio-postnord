@@ -65,7 +65,7 @@ LABEL_CN22_SEED = lib.StampSeed(
 # The CN23 signature strip, measured on the only CN23 capture in this
 # project or the fork: the test-mode 2026-10-19 booking whose two-page A4
 # PDF composes the International Parcel label on page 1 and the upright
-# CN23 on page 2 (tests/postnord/fixtures/sandbox/
+# CN23 on page 2 (the local fixture sandbox/
 # p1-cn23-gateway.printout01.pdf, sha256 0b5e7ae9ad4ad90c52554c824ca5a6bb
 # 14bc78d64ac31314e4a586b625e65e66, printoutComposition {cn23: 1,
 # label: 1}). The certification cell prints its caption as two stacked

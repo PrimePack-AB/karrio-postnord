@@ -1,7 +1,6 @@
 """PostNord CN22 stamping: the plugin's seeds against the real CN22 documents."""
 
 import io
-import os
 import re
 import base64
 import unittest
@@ -17,7 +16,7 @@ import karrio.core.models as models
 import karrio.core.utils.stamping as stamping
 import karrio.providers.postnord.stamping as postnord_stamping
 
-FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
+from postnord import local_fixtures
 
 KEYWORD = "Date and Sender's signature"
 
@@ -32,8 +31,7 @@ PAGE_HEIGHT_MM = 297.0
 
 
 def _read_b64(name: str) -> str:
-    with open(os.path.join(FIXTURES_DIR, name), "rb") as handle:
-        return base64.b64encode(handle.read()).decode("utf-8")
+    return local_fixtures.read_b64(name)
 
 
 def _cn22_pdf() -> models.ShippingDocument:
@@ -140,11 +138,13 @@ class TestPostnordStampSeeds(unittest.TestCase):
     def test_a4_seed_does_not_leak_to_letter(self):
         self.assertIsNone(stamping._default_registry("postnord/cn22/PDF/LETTER"))
 
+    @local_fixtures.required
     def test_cn22_pdf_fixture_detects_a4(self):
         self.assertEqual(
             stamping._detect_paper_variant(_cn22_pdf().base64, "PDF"), "A4"
         )
 
+    @local_fixtures.required
     def test_cn22_zpl_fixture_is_the_pristine_rotated_form(self):
         stream = _decode_zpl(_cn22_zpl().base64)
 
@@ -156,6 +156,7 @@ class TestPostnordStampSeeds(unittest.TestCase):
 
 
 class TestCn22PdfStamp(unittest.TestCase):
+    @local_fixtures.required
     def test_seed_composites_date_and_signature_at_the_strip(self):
         stamped = lib.stamp_document(
             _cn22_pdf(),
@@ -183,6 +184,7 @@ class TestCn22PdfStamp(unittest.TestCase):
             self.assertLess(cm[1], 0.0)
             self.assertGreater(cm[2], 0.0)
 
+    @local_fixtures.required
     def test_stamp_preserves_the_text_layer(self):
         document = _cn22_pdf()
         original = (
@@ -205,6 +207,7 @@ class TestCn22PdfStamp(unittest.TestCase):
 
 
 class TestCn22ZplStamp(unittest.TestCase):
+    @local_fixtures.required
     def test_seeded_form_resolves_implicitly_by_keyword(self):
         # The keyword field sits at ^FO20,35 in the form; the measured offset
         # resolves to ^FO7,303 with a 61 x 392-dot raster (8 bytes/row).
@@ -221,6 +224,7 @@ class TestCn22ZplStamp(unittest.TestCase):
         self.assertIn("CUSTOMS DECLARATION", zpl)
         self.assertEqual(zpl.count("^XZ"), 1)
 
+    @local_fixtures.required
     def test_consumer_keyword_outranks_the_seed_keyword(self):
         # The Total Weight field's ^FO385,488.33 origin (form line 107) differs
         # from the seed keyword's ^FO20,35, so the operands identify the winner.
@@ -241,6 +245,7 @@ class TestCn22ZplStamp(unittest.TestCase):
             ),
         )
 
+    @local_fixtures.required
     def test_keyword_stamp_with_date_composites_one_strip(self):
         stamped = lib.stamp_document(
             _cn22_zpl(),
@@ -257,6 +262,7 @@ class TestCn22ZplStamp(unittest.TestCase):
         self.assertGreater(fraction, 0.005)
         self.assertLess(fraction, 0.30)
 
+    @local_fixtures.required
     def test_rotated_placement_anchors_the_corner_on_the_form(self):
         # 5/100/33/12 mm at 203 dpi resolve to 40/799/264/96 dots; rotated 90
         # the 96 x 264 raster hangs down-right from ^FO40,799 in blank stock.

@@ -1,8 +1,11 @@
-"""Offline checks on the committed sandbox evidence fixtures.
+"""Offline checks on the sandbox evidence fixtures.
 
-The fixtures under fixtures/sandbox/ back the sandbox citations in the
-probe note (docs/notes/sandbox/cn23-composition-sandbox-probe.md): each
-is a byte-identical copy of a capture file named by the manifest. These
+The fixtures back the sandbox citations in the probe note
+(docs/notes/sandbox/cn23-composition-sandbox-probe.md): each is a
+byte-identical copy of a capture file named by the manifest. The
+responses and the manifest are committed under fixtures/sandbox/; the
+printouts are PostNord content and stay in the local fixture directory
+(``local_fixtures``), so the checks that read them skip without it. These
 tests pin that identity through the manifest's recorded sha256 values,
 tie the manifest's source shas back to the note's capture table, and
 keep every fixture free of apikey-shaped runs using the sandbox harness
@@ -16,6 +19,8 @@ import pathlib
 import re
 import typing
 import unittest
+
+from postnord import local_fixtures
 
 FIXTURE_DIR = pathlib.Path(__file__).parent / "fixtures" / "sandbox"
 MANIFEST_PATH = FIXTURE_DIR / "manifest.json"
@@ -53,6 +58,13 @@ EXPECTED_SEGMENTS = {
 
 def manifest() -> dict:
     return json.loads(MANIFEST_PATH.read_text())
+
+
+def fixture_path(entry: dict) -> pathlib.Path:
+    """A response under fixtures/sandbox/, a printout in the local directory."""
+    if entry["kind"] == "printout":
+        return local_fixtures.path(f"sandbox/{entry['fixture']}")
+    return FIXTURE_DIR / entry["fixture"]
 
 
 def note_capture_table() -> typing.Dict[typing.Tuple[str, str], str]:
@@ -98,12 +110,22 @@ def pdf_runs_outside_the_trailer_ids(raw: bytes) -> typing.List[str]:
 
 
 class TestSandboxEvidenceManifest(unittest.TestCase):
-    def test_manifest_lists_exactly_the_committed_fixtures(self):
+    def test_manifest_lists_the_committed_responses_and_the_local_printouts(self):
         committed = sorted(
-            path.name for path in FIXTURE_DIR.iterdir() if path.name != "manifest.json"
+            path.name
+            for path in FIXTURE_DIR.iterdir()
+            if path.name != "manifest.json" and path.suffix != ".pdf"
         )
-        listed = sorted(entry["fixture"] for entry in manifest()["fixtures"])
-        self.assertEqual(listed, committed)
+        entries = manifest()["fixtures"]
+        responses = sorted(e["fixture"] for e in entries if e["kind"] != "printout")
+        printouts = sorted(
+            f"sandbox/{e['fixture']}" for e in entries if e["kind"] == "printout"
+        )
+        self.assertEqual(responses, committed)
+        self.assertEqual(
+            printouts,
+            sorted(name for name in local_fixtures.FILES if name.startswith("sandbox/")),
+        )
 
     def test_manifest_provenance_fields(self):
         document = manifest()
@@ -113,15 +135,24 @@ class TestSandboxEvidenceManifest(unittest.TestCase):
         self.assertIn("karrio-postnord/sandbox", document["capture_root"])
         self.assertTrue(document["redaction_policy"])
 
-    def test_every_fixture_matches_its_recorded_sha(self):
-        for entry in manifest()["fixtures"]:
+    def _assert_recorded_shas(self, entries: typing.List[dict]):
+        for entry in entries:
             with self.subTest(fixture=entry["fixture"]):
-                digest = hashlib.sha256(
-                    (FIXTURE_DIR / entry["fixture"]).read_bytes()
-                ).hexdigest()
+                digest = hashlib.sha256(fixture_path(entry).read_bytes()).hexdigest()
                 self.assertEqual(digest, entry["sha256"])
                 if entry["byte_identical"]:
                     self.assertEqual(digest, entry["source_sha256"])
+
+    def test_every_response_matches_its_recorded_sha(self):
+        self._assert_recorded_shas(
+            [e for e in manifest()["fixtures"] if e["kind"] != "printout"]
+        )
+
+    @local_fixtures.required
+    def test_every_local_printout_matches_its_recorded_sha(self):
+        self._assert_recorded_shas(
+            [e for e in manifest()["fixtures"] if e["kind"] == "printout"]
+        )
 
     def test_source_shas_match_the_probe_note_capture_table(self):
         table = note_capture_table()
@@ -153,13 +184,14 @@ class TestSandboxEvidenceSecrets(unittest.TestCase):
             with self.subTest(fixture=path.name):
                 self.assertEqual(unexplained_runs(json.loads(path.read_text())), [])
 
+    @local_fixtures.required
     def test_printout_runs_are_trailer_id_values_only(self):
         printouts = 0
         for entry in manifest()["fixtures"]:
             if entry["kind"] != "printout":
                 continue
             printouts += 1
-            raw = (FIXTURE_DIR / entry["fixture"]).read_bytes()
+            raw = fixture_path(entry).read_bytes()
             with self.subTest(fixture=entry["fixture"]):
                 self.assertEqual(pdf_runs_outside_the_trailer_ids(raw), [])
         self.assertEqual(printouts, 2)
@@ -186,11 +218,12 @@ class TestSandboxEvidenceSecrets(unittest.TestCase):
             unexplained_runs(dict(sha256=keylike)), [("$.sha256", keylike)]
         )
 
+    @local_fixtures.required
     def test_printout_page_counts_match_the_manifest(self):
         for entry in manifest()["fixtures"]:
             if entry["kind"] != "printout":
                 continue
-            raw = (FIXTURE_DIR / entry["fixture"]).read_bytes()
+            raw = fixture_path(entry).read_bytes()
             with self.subTest(fixture=entry["fixture"]):
                 self.assertEqual(len(PDF_PAGE.findall(raw)), entry["pages"])
                 self.assertEqual(len(entry["page_size_pt"]), 2)

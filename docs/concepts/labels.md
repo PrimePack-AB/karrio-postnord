@@ -22,7 +22,7 @@ The ZPL body starts with persistent host commands — `^LL1520` (190 mm at 8 dot
 
 For bookings with customs data, PostNord composes the customs document into the booking printout itself: one PDF or one ZPL carrying both the declaration section and the label section.
 `docs.label` is that composed printout, returned unchanged, and `meta.printout_composition` lists the kinds PostNord declares, for example `["cn22", "label"]`.
-For International Parcel (91), the committed test-mode capture shows the composition `{cn23: 1, label: 1}` as one two-page A4 PDF — the parcel label on page 1, the CN23 on page 2 ([response](../../tests/postnord/fixtures/sandbox/p1-cn23-gateway.response.json), [printout](../../tests/postnord/fixtures/sandbox/p1-cn23-gateway.printout01.pdf)); test mode sends no EDI downstream, so production composition may differ.
+For International Parcel (91), the committed test-mode capture shows the composition `{cn23: 1, label: 1}` as one two-page A4 PDF — the parcel label on page 1, the CN23 on page 2 ([response](../../tests/postnord/fixtures/sandbox/p1-cn23-gateway.response.json), [printout record](../../tests/postnord/fixtures/sandbox/manifest.json); the printout itself is not distributed); test mode sends no EDI downstream, so production composition may differ.
 
 The connector verifies the composed label with the SDK customs classifier using PostNord's declared section markers (`DOCUMENT_SECTIONS` in `karrio/providers/postnord/stamping.py`).
 A label that does not classify as the shipping label composed with the branch's declaration is still returned unchanged, with a `postnord_unexpected_label_composition` warning naming the expected and the classified composition; the booking never fails on it.

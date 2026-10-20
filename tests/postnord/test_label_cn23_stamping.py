@@ -1,6 +1,6 @@
 """PostNord label + CN23 printout: the sandbox capture's markers and seed.
 
-The fixture is the committed test-mode capture of the CN23-composition
+The fixture is the local test-mode capture of the CN23-composition
 probe (2026-10-19, docs/notes/sandbox/cn23-composition-sandbox-probe.md
 P1): a 91 (International Parcel) SE-to-AL booking whose two-page A4 PDF
 printout composes the parcel label on page 1 and the CN23 customs
@@ -18,6 +18,7 @@ import karrio.references as references
 import karrio.core.utils.stamping as stamping
 import karrio.providers.postnord.stamping as postnord_stamping
 
+from postnord import local_fixtures
 from postnord.test_label_cn22_stamping import (
     PDF_FIXTURES,
     _document,
@@ -89,6 +90,7 @@ class TestPostnordCn23Registry(unittest.TestCase):
 
 
 class TestP1Cn23Capture(unittest.TestCase):
+    @local_fixtures.required
     def test_p1_fixture_is_a_parcel_label_page_then_a_cn23_page(self):
         document = _document(P1_FIXTURE, "PDF")
         pages = _pdf_pages(document.base64)
@@ -102,6 +104,7 @@ class TestP1Cn23Capture(unittest.TestCase):
             self.assertNotIn(marker, _page_text(document.base64, 1))
             self.assertIn(marker, _page_text(document.base64, 2))
 
+    @local_fixtures.required
     def test_p1_fixture_classifies_with_both_kinds_and_no_composition(self):
         # The kinds carry the cn23 and label sections, while the SDK
         # classifier itself resolves no composition: its vocabulary is
@@ -121,6 +124,7 @@ class TestP1Cn23Capture(unittest.TestCase):
             ),
         )
 
+    @local_fixtures.required
     def test_cn23_markers_occur_in_no_cn22_or_bare_label_capture(self):
         for name in (
             P5_LABEL_FIXTURE,
@@ -134,6 +138,7 @@ class TestP1Cn23Capture(unittest.TestCase):
 
                 self.assertNotIn("cn23", result.kinds)
 
+    @local_fixtures.required
     def test_p1_carries_no_cn22_section(self):
         result = lib.classify_customs_composition(
             _document(P1_FIXTURE, "PDF"), carrier="postnord"
@@ -177,6 +182,7 @@ class TestLabelCn23Stamp(unittest.TestCase):
         )
         self.assertEqual(registry.rotation, 0)
 
+    @local_fixtures.required
     def test_seeded_stamp_resolves_by_keyword_into_the_free_area(self):
         document = _document(P1_FIXTURE, "PDF")
 
@@ -198,6 +204,7 @@ class TestLabelCn23Stamp(unittest.TestCase):
         self.assertAlmostEqual(min(bounds[0] for _, bounds in overlays), _pt(STRIP_MM[0][0]), places=2)
         self.assertAlmostEqual(max(bounds[1] for _, bounds in overlays), _pt(STRIP_MM[0][1]), places=2)
 
+    @local_fixtures.required
     def test_stamp_leaves_the_label_page_untouched(self):
         document = _document(P1_FIXTURE, "PDF")
         original_label = _pdf_pages(document.base64)[0]["/Contents"].get_object()

@@ -1,12 +1,16 @@
-"""Build the committed sandbox evidence fixtures from the out-of-repo captures.
+"""Build the sandbox evidence fixtures from the out-of-repo captures.
 
 The captures stay under the XDG state directory, outside the repository
 (``karrio-postnord/sandbox/<run>/`` below the state root). This module
 reads the evidence-of-record files of the 2026-10-19 probe round, checks
 that no apikey-shaped run survives outside the redactor's own
-exemptions, and copies them byte-identical into
+exemptions, and copies them byte-identical: the responses into
 ``tests/postnord/fixtures/sandbox/`` next to a manifest recording each
-fixture's source run, source file, and the capture's sha256.
+fixture's source run, source file, and the capture's sha256, and the
+printouts, which are PostNord content the repository does not
+distribute, into the ``sandbox/`` directory of the local fixture
+directory (``$POSTNORD_FIXTURES_DIR``, or ``karrio-postnord/fixtures/``
+below the state root; see tests/postnord/local_fixtures.py).
 
 Redaction policy (the repo carve-out, CLAUDE.md "Evidence and redaction
 rules"): the sandbox customer number, printIds, bookingIds, item ids, the
@@ -21,7 +25,8 @@ Run it from the repository root::
 
     .venv/bin/python -m sandbox_tests.postnord.evidence
     .venv/bin/python -m sandbox_tests.postnord.evidence \\
-        --state-root ~/.local/state --out /tmp/fixtures
+        --state-root ~/.local/state --out /tmp/fixtures \\
+        --printout-out /tmp/fixtures/printouts
 """
 
 import argparse
@@ -288,10 +293,25 @@ def manifest_entry(spec: FixtureSpec, raw: bytes) -> Json:
     return entry
 
 
-def build(state_root: pathlib.Path, out: pathlib.Path) -> typing.List[pathlib.Path]:
-    """Write the fixture set and its manifest into ``out``; return the paths."""
+def local_printout_dir(environ: typing.Mapping[str, str]) -> pathlib.Path:
+    """The ``sandbox/`` directory of the local fixture directory."""
+    override = environ.get("POSTNORD_FIXTURES_DIR")
+    root = (
+        pathlib.Path(override).expanduser()
+        if override
+        else harness.state_root(environ) / "karrio-postnord" / "fixtures"
+    )
+    return root / "sandbox"
+
+
+def build(
+    state_root: pathlib.Path, out: pathlib.Path, printout_out: pathlib.Path
+) -> typing.List[pathlib.Path]:
+    """Write the responses and the manifest into ``out`` and the printouts
+    into ``printout_out``; return the paths."""
     captures = state_root / CAPTURE_DIR_NAME
     out.mkdir(parents=True, exist_ok=True)
+    printout_out.mkdir(parents=True, exist_ok=True)
     entries: typing.List[Json] = []
     written: typing.List[pathlib.Path] = []
     for spec in CATALOG:
@@ -301,7 +321,7 @@ def build(state_root: pathlib.Path, out: pathlib.Path) -> typing.List[pathlib.Pa
             check_printout(raw, source)
         else:
             check_response(raw, source)
-        fixture = out / spec.fixture
+        fixture = (printout_out if spec.kind == "printout" else out) / spec.fixture
         fixture.write_bytes(raw)
         written.append(fixture)
         entries.append(manifest_entry(spec, raw))
@@ -337,6 +357,7 @@ def build(state_root: pathlib.Path, out: pathlib.Path) -> typing.List[pathlib.Pa
 class Arguments:
     state_root: pathlib.Path
     out: pathlib.Path
+    printout_out: pathlib.Path
 
 
 def parse_arguments(argv: typing.Sequence[str], environ: typing.Mapping[str, str]) -> Arguments:
@@ -352,13 +373,21 @@ def parse_arguments(argv: typing.Sequence[str], environ: typing.Mapping[str, str
         "--out", type=pathlib.Path, default=DEFAULT_OUT,
         help=f"fixture directory (default: {DEFAULT_OUT.relative_to(REPO_ROOT)})",
     )
+    parser.add_argument(
+        "--printout-out", type=pathlib.Path, default=local_printout_dir(environ),
+        help="printout directory, outside the repository (default: "
+        "$POSTNORD_FIXTURES_DIR/sandbox or "
+        "$XDG_STATE_HOME/karrio-postnord/fixtures/sandbox)",
+    )
     parsed = parser.parse_args(argv)
-    return Arguments(parsed.state_root.expanduser(), parsed.out)
+    return Arguments(
+        parsed.state_root.expanduser(), parsed.out, parsed.printout_out.expanduser()
+    )
 
 
 def main(argv: typing.Sequence[str]) -> None:
     arguments = parse_arguments(argv, os.environ)
-    for path in build(arguments.state_root, arguments.out):
+    for path in build(arguments.state_root, arguments.out, arguments.printout_out):
         print(path)
 
 

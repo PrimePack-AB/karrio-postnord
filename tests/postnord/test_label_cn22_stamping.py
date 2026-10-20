@@ -5,7 +5,8 @@ booking and from a by-printId fetch without ``definePrintout``, the PDF from the
 same by-printId fetch. The two-page PDF is a sandbox export-letter booking
 printout: a "PostNord Tracked Letter" label on page 1 and an upright CN22 on
 page 2. The lone CN22 PDF is the ``definePrintout=onlyCustomsDeclarations``
-capture already vendored as ``postnord_cn22.pdf``.
+capture ``postnord_cn22.pdf``. All of them are local fixtures
+(``local_fixtures``).
 """
 
 import io
@@ -22,6 +23,7 @@ import karrio.core.models as models
 import karrio.core.utils.stamping as stamping
 import karrio.providers.postnord.stamping as postnord_stamping
 
+from postnord import local_fixtures
 from postnord.test_cn22_stamping import (
     KEYWORD,
     _decode_zpl,
@@ -74,6 +76,7 @@ def _page_mm(page) -> tuple:
 
 
 class TestPostnordCombinedFixtures(unittest.TestCase):
+    @local_fixtures.required
     def test_combined_zpl_fixtures_are_one_format_with_both_sections(self):
         for name in COMBINED_ZPL_FIXTURES:
             with self.subTest(fixture=name):
@@ -88,6 +91,7 @@ class TestPostnordCombinedFixtures(unittest.TestCase):
                 )
                 self.assertEqual(stream.count(KEYWORD), 1)
 
+    @local_fixtures.required
     def test_combined_zpl_cn22_section_carries_no_label_marker(self):
         for name in COMBINED_ZPL_FIXTURES:
             with self.subTest(fixture=name):
@@ -99,12 +103,14 @@ class TestPostnordCombinedFixtures(unittest.TestCase):
                 # The label section carries PostNord's own ^GFA logo graphics.
                 self.assertNotIn("^GFA", cn22_section)
 
+    @local_fixtures.required
     def test_lone_zpl_fixture_carries_no_label_section(self):
         stream = _zpl_stream(LONE_ZPL_FIXTURE)
 
         self.assertEqual(stream.count(ZPL_CN22_MARKER), 1)
         self.assertNotIn(ZPL_LABEL_MARKER, stream)
 
+    @local_fixtures.required
     def test_combined_pdf_fixture_is_one_a4_page_with_both_sections(self):
         document = _document(COMBINED_PDF_FIXTURE, "PDF")
         text = _page_text(document.base64)
@@ -115,6 +121,7 @@ class TestPostnordCombinedFixtures(unittest.TestCase):
             self.assertIn(marker, text)
         self.assertLess(text.index("CUSTOMS DECLARATION"), text.index("Brev utrikes"))
 
+    @local_fixtures.required
     def test_two_page_pdf_fixture_is_a_tracked_letter_label_then_a_cn22(self):
         document = _document(TWO_PAGE_PDF_FIXTURE, "PDF")
         pages = _pdf_pages(document.base64)
@@ -132,6 +139,7 @@ class TestPostnordCombinedFixtures(unittest.TestCase):
         for marker in PDF_LABEL_TEXT + PDF_TRACKED_LETTER_TEXT:
             self.assertNotIn(marker, cn22)
 
+    @local_fixtures.required
     def test_tracked_letter_markers_occur_on_no_cn22_page(self):
         for name in PDF_FIXTURES:
             document = _document(name, "PDF")
@@ -143,6 +151,7 @@ class TestPostnordCombinedFixtures(unittest.TestCase):
                     for marker in PDF_TRACKED_LETTER_TEXT:
                         self.assertNotIn(marker, text)
 
+    @local_fixtures.required
     def test_lone_pdf_fixture_is_one_a4_page_without_label_text(self):
         document = _document(LONE_PDF_FIXTURE, "PDF")
         text = _page_text(document.base64)
@@ -185,6 +194,7 @@ class TestPostnordDocumentSections(unittest.TestCase):
             },
         )
 
+    @local_fixtures.required
     def test_combined_zpl_fixtures_classify_as_label_cn22(self):
         for name in COMBINED_ZPL_FIXTURES:
             with self.subTest(fixture=name):
@@ -202,6 +212,7 @@ class TestPostnordDocumentSections(unittest.TestCase):
                     ),
                 )
 
+    @local_fixtures.required
     def test_combined_pdf_fixture_classifies_as_label_cn22_on_page_one(self):
         result = lib.classify_customs_composition(
             _document(COMBINED_PDF_FIXTURE, "PDF"), carrier="postnord"
@@ -217,6 +228,7 @@ class TestPostnordDocumentSections(unittest.TestCase):
             ),
         )
 
+    @local_fixtures.required
     def test_two_page_pdf_fixture_classifies_as_label_cn22_on_page_two(self):
         result = lib.classify_customs_composition(
             _document(TWO_PAGE_PDF_FIXTURE, "PDF"), carrier="postnord"
@@ -232,6 +244,7 @@ class TestPostnordDocumentSections(unittest.TestCase):
             ),
         )
 
+    @local_fixtures.required
     def test_lone_zpl_fixture_classifies_as_cn22(self):
         result = lib.classify_customs_composition(
             _document(LONE_ZPL_FIXTURE, "ZPL"), carrier="postnord"
@@ -244,6 +257,7 @@ class TestPostnordDocumentSections(unittest.TestCase):
             ),
         )
 
+    @local_fixtures.required
     def test_lone_pdf_fixture_classifies_as_cn22_on_page_one(self):
         result = lib.classify_customs_composition(
             _document(LONE_PDF_FIXTURE, "PDF"), carrier="postnord"
@@ -256,6 +270,7 @@ class TestPostnordDocumentSections(unittest.TestCase):
             ),
         )
 
+    @local_fixtures.required
     def test_zpl_label_without_the_cn22_section_is_not_customs_bearing(self):
         stream = _zpl_stream(COMBINED_ZPL_FIXTURES[0])
         label_only = (
@@ -302,6 +317,7 @@ class TestLabelCn22ZplStamp(unittest.TestCase):
         self.assertIsNone(combined.keyword_placement)
         self.assertIsNone(lone.zpl_keyword_frame_placement)
 
+    @local_fixtures.required
     def test_combined_zpl_stamps_at_the_lone_cn22_placement(self):
         lone_field = _stamp_field(_stamped_zpl(LONE_ZPL_FIXTURE, "cn22"))
         ((lone_x, lone_y, *_),) = _grf_fields(lone_field)
@@ -313,6 +329,7 @@ class TestLabelCn22ZplStamp(unittest.TestCase):
 
                 self.assertEqual(_stamp_field(zpl), lone_field)
 
+    @local_fixtures.required
     def test_combined_zpl_label_section_is_byte_identical(self):
         # The backend splices its one ^GFA field immediately before ^XZ, so
         # everything the carrier emitted, the label section from its marker
@@ -499,6 +516,7 @@ def _two_page_free_area():
 
 
 class TestLabelCn22PdfMeasurement(unittest.TestCase):
+    @local_fixtures.required
     def test_combined_page_places_the_label_frame_by_translation(self):
         page, form = _form_page(_read_b64(COMBINED_PDF_FIXTURE))
         ((operands, _),) = [
@@ -517,6 +535,7 @@ class TestLabelCn22PdfMeasurement(unittest.TestCase):
         self.assertAlmostEqual(float(form["/BBox"][2]) / DOT_PT, 839.0, places=2)
         self.assertAlmostEqual(FORM_HEIGHT_PT / DOT_PT, 1518.0, places=2)
 
+    @local_fixtures.required
     def test_combined_page_landmarks_match_the_lone_cn22_form(self):
         page, form = _form_page(_read_b64(COMBINED_PDF_FIXTURE))
         (keyword_run,) = [run for run in _text_runs(page) if run[0] == KEYWORD]
@@ -536,6 +555,7 @@ class TestLabelCn22PdfMeasurement(unittest.TestCase):
         )
         self.assertAlmostEqual(STRIP_LABEL_DOTS[1][1], 695.0, delta=0.5)
 
+    @local_fixtures.required
     def test_box_bottom_rule_separates_the_cn22_and_label_sections(self):
         runs = _text_runs(_form_page(_read_b64(COMBINED_PDF_FIXTURE))[0])
         above = {text for text, _, y in runs if y > CN22_BOX_BOTTOM_RULE_PT}
@@ -553,6 +573,7 @@ class TestLabelCn22TwoPageMeasurement(unittest.TestCase):
         form = page["/Resources"]["/XObject"]["/Form2"].get_object()
         return page, form
 
+    @local_fixtures.required
     def test_page_two_places_the_upright_cn22_frame_by_translation(self):
         page, form = self._page()
         ((operands, _),) = [
@@ -574,6 +595,7 @@ class TestLabelCn22TwoPageMeasurement(unittest.TestCase):
         self.assertAlmostEqual(TWO_PAGE_FORM_SIZE_PT[0] / DOT_PT, 839.0, places=2)
         self.assertAlmostEqual(TWO_PAGE_FORM_SIZE_PT[1] / DOT_PT, 1318.0, places=2)
 
+    @local_fixtures.required
     def test_page_two_landmarks(self):
         page, form = self._page()
         runs = _text_runs(page)
@@ -626,6 +648,7 @@ class TestLabelCn22PdfStamp(unittest.TestCase):
     def test_pdf_seed_does_not_leak_to_letter(self):
         self.assertIsNone(stamping._default_registry("postnord/label_cn22/PDF/LETTER"))
 
+    @local_fixtures.required
     def test_classified_combined_pdf_stamps_within_the_strip_on_page_one(self):
         document = _document(COMBINED_PDF_FIXTURE, "PDF")
         result = lib.classify_customs_composition(document, carrier="postnord")
@@ -648,6 +671,7 @@ class TestLabelCn22PdfStamp(unittest.TestCase):
             self.assertTrue(_reads_down_the_page(matrix))
             _within(self, bounds, _rotated_strip_region())
 
+    @local_fixtures.required
     def test_classified_two_page_pdf_stamps_page_two_in_the_free_area(self):
         document = _document(TWO_PAGE_PDF_FIXTURE, "PDF")
         result = lib.classify_customs_composition(document, carrier="postnord")
@@ -677,6 +701,7 @@ class TestLabelCn22PdfStamp(unittest.TestCase):
         )
         self.assertEqual(_page_text(stamped.base64, 2), _page_text(document.base64, 2))
 
+    @local_fixtures.required
     def test_stamp_leaves_the_label_section_untouched(self):
         document = _document(COMBINED_PDF_FIXTURE, "PDF")
         page, _ = _form_page(document.base64)
@@ -716,6 +741,7 @@ class TestLabelCn22ClassifyThenStamp(unittest.TestCase):
         )
         return document, result, stamped
 
+    @local_fixtures.required
     def test_combined_zpl_captures_stamp_at_the_signature_field(self):
         for name in COMBINED_ZPL_FIXTURES:
             with self.subTest(fixture=name):
@@ -726,6 +752,7 @@ class TestLabelCn22ClassifyThenStamp(unittest.TestCase):
                 self.assertEqual(stamped.format, document.format)
                 self.assertEqual((x, y), (7, 303))
 
+    @local_fixtures.required
     def test_combined_pdf_captures_stamp_only_the_declaration_page(self):
         captures = (
             (COMBINED_PDF_FIXTURE, 1, _rotated_strip_region(), _reads_down_the_page),
