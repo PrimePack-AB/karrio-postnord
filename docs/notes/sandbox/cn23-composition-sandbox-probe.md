@@ -93,6 +93,7 @@ No committed evidence fixture derives from these captures yet, so published docu
 
 The two open halves above closed the same day.
 The fixture decision was made 2026-10-19: the evidence of record is committed as redacted fixtures under `tests/postnord/fixtures/sandbox/` with a provenance manifest, each byte-identical to its capture in the table above and checked offline by `tests/postnord/test_sandbox_evidence.py` (commit a476a21).
+The two printouts among those captures, `sandbox/p1-cn23-gateway.printout01.pdf` and `sandbox/p5-no-customs-with-application-raw.printout01.pdf`, were removed from this repository's history on 2026-10-20 and are kept locally under `${XDG_STATE_HOME:-~/.local/state}/karrio-postnord/fixtures/` (`POSTNORD_FIXTURES_DIR`), as described in [Local PostNord printouts](../../development/index.md); `manifest.json` records their digests.
 The CN23 stamping seeds were derived from the P1 printout and the verification shipped (commit 1d84fe5): PDF cn23 page-text markers and the `label_cn23/PDF/A4` signature seed, the 91 content check on PDF connector-side through the classifier's kinds with ZPL skipped, and the `postnord_printout_composition_mismatch` attestation across the customs branches.
 The published pages outside this note now carry the sandbox claims, citing those fixtures.
 The remaining scope limits stand: everything here is test mode, P4 stays void, the CN23 ZPL composition is uncaptured, and the by-id and declaration endpoints' test-mode behavior still rests on the prior fork evidence.

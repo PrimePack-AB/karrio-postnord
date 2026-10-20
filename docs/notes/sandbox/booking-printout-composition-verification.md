@@ -6,7 +6,7 @@ created: 2026-09-28
 # Booking printout composition verification
 
 *Evidence for the composed-label stamping design: printout captures across the letter and parcel services.*
-*Ported from the fork (Joaqim/karrio, branch docs-openspec): `docs/notes/postnord/booking-printout-composition-verification.md`, created 2026-09-28, last changed 2026-09-28. Capture paths under `~/Documents` and `agent-logs/` resolve only on the machines that made them; the fixtures cited below are committed in `tests/postnord/fixtures/`.*
+*Ported from the fork (Joaqim/karrio, branch docs-openspec): `docs/notes/postnord/booking-printout-composition-verification.md`, created 2026-09-28, last changed 2026-09-28. Capture paths under `~/Documents` and `agent-logs/` resolve only on the machines that made them; the fixtures cited below are not tracked in this repository and are kept locally under `${XDG_STATE_HOME:-~/.local/state}/karrio-postnord/fixtures/` (`POSTNORD_FIXTURES_DIR`), as described in docs/development/index.md "Local PostNord printouts".*
 
 Evidence for the openspec change `stamp-embedded-customs-forms`, recorded 2026-09-28.
 
@@ -37,7 +37,8 @@ Before group 7 the 91 ZPL classified as `none` and the 91 PDF as lone `cn22`, so
 Consequences implemented in the change (design D8): the ZPL and PDF markers accept the 91 templates as `lib.AnyOf` alternatives, and the combined ZPL seed anchors on the CN22 signature keyword in the field's reading frame and inserts the stamp into the format containing it.
 One geometry fits both ZPL layouts: `^FO7,303` on the rotated letter CN22 (unchanged) and `^FO293,758` in the 91 CN22 V2 signature area.
 The PDF keyword seed from D7 lands inside the 91 CN22 signature area on page 2 without change.
-Both 91 captures are fixtures in `tests/postnord/fixtures/` (`postnord_label_cn22_international_parcel.{zpl,pdf}`), with booking verification tests alongside; develop `6d7c37d7b` carried the fix.
+In the fork, both 91 captures were fixtures with booking verification tests alongside; develop `6d7c37d7b` carried the fix.
+In this repository they are not tracked and are kept locally under `${XDG_STATE_HOME:-~/.local/state}/karrio-postnord/fixtures/` (`POSTNORD_FIXTURES_DIR`) as `postnord_label_cn22_international_parcel.{zpl,pdf}`, as described in [Local PostNord printouts](../../development/index.md).
 
 ## Open
 
