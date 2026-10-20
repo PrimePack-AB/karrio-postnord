@@ -164,10 +164,11 @@ def _booking_response(
 ) -> typing.Optional[postnord_res.BookingResponseType]:
     """Read the ``bookingResponseCN`` off either endpoint's 200 envelope.
 
-    Per ``vendor/booking.swagger.json`` the digital endpoint returns the
-    bare ``{bookingId, idInformation}`` object; only the PDF variant wraps
-    it under ``bookingResponse``. Bodies carrying neither shape yield None
-    so the error-parsing path reports them instead of an empty success.
+    Per the Booking APIs 3.5.29.1 specification the digital endpoint
+    returns the bare ``{bookingId, idInformation}`` object; only the PDF
+    variant wraps it under ``bookingResponse``. Bodies carrying neither
+    shape yield None so the error-parsing path reports them instead of an
+    empty success.
     """
     body = (
         response.get("bookingResponse")

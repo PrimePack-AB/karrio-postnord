@@ -714,7 +714,7 @@ def _customs_invoice_errors(
     state identifier is reserved for EORI resolution), ``invoice.invoiceNo``,
     seller and buyer ``contacts.name``/``phoneNo``, and per-line
     ``hsTariffNumber`` and ``countryOfOrigin`` are required by
-    booking.swagger.json and cannot be derived when absent from the unified
+    Booking APIs 3.5.29.1 and cannot be derived when absent from the unified
     payload.
     """
     required = "is required for a PostNord customs invoice"

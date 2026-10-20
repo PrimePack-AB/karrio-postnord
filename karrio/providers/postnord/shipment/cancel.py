@@ -9,7 +9,7 @@ duplicate shipments, so this connector never does so.
 
 Real id-based cancellation uses the swagger ``deleteEdiRequest`` shape
 (``{"ids": [{"id": <string>}], "minItems": 1}``), but its endpoint is absent from
-the available ``vendor/booking.swagger.json``. Pending the delete endpoint URL
+the Booking APIs 3.5.29.1 specification. Pending the delete endpoint URL
 from PostNord's v3 REST reference manual, ``shipment_cancel_request`` emits the
 correct ``{"ids": [{"id": ...}]}`` body and the proxy POSTs it to ``/v3/edi`` as a
 placeholder: ``/v3/edi`` cannot mis-read this body as a booking and safely rejects

@@ -183,11 +183,11 @@ class ShippingOption(lib.Enum):
     # additional service code carried by pallet (52) and groupage (83) options.
     postnord_pallet_groupage = lib.OptionEnum("65", bool, meta=dict(category="HANDLING"))
 
-    # Consignee notification channels (general-descriptions.pdf; codes current
-    # per Read This First v22.7). Each code uses the matching contact slot on
-    # the consignee party; notification language follows the booking `locale`
-    # query parameter. Notifications are opt-in: booking no code means no
-    # notification, and channels combine freely (additive model).
+    # Consignee notification channels (PostNord General Descriptions; codes
+    # current per Read This First v22.7). Each code uses the matching contact
+    # slot on the consignee party; notification language follows the booking
+    # `locale` query parameter. Notifications are opt-in: booking no code
+    # means no notification, and channels combine freely (additive model).
     postnord_notify_by_letter = lib.OptionEnum("A2", bool)
     postnord_notify_by_sms = lib.OptionEnum("A3", bool)
     postnord_notify_by_email = lib.OptionEnum("A4", bool)
@@ -251,7 +251,7 @@ class CN22CategoryType:
     """Resolve unified ``customs.content_type`` to a CN22 ``categoryType``.
 
     PostNord documents six ``categoryOfItem.categoryType`` values
-    (booking.swagger.json): GIFT, DOCUMENT, RETURNED GOODS, COMMERCIAL
+    (Booking APIs 3.5.29.1): GIFT, DOCUMENT, RETURNED GOODS, COMMERCIAL
     SAMPLE, OTHER, and SALE OF GOODS — the same six categories as karrio's
     ``CustomsContentType`` under different names. Both vocabularies are
     accepted, so ``merchandise`` and ``sale of goods`` both resolve to
@@ -284,7 +284,7 @@ class CN22CategoryType:
 
 
 # Booking freeText usage code carrying the recipient's door/access code;
-# PostNord prints it as "Ref 2" on the label (general-descriptions.pdf:
+# PostNord prints it as "Ref 2" on the label (PostNord General Descriptions:
 # "ZDC ... Door code", "Used in RFF for Consignee"). No PostNord source
 # enumerates which services accept it, so the value is passed through
 # unverified.
@@ -491,7 +491,10 @@ class CustomsDeclarationType(lib.StrEnum):
 
 
 class ExportReason(lib.StrEnum):
-    """``invoice.reasonForExportation`` procedure codes (booking.swagger.json)."""
+    """``invoice.reasonForExportation`` procedure codes.
+
+    Source: Booking APIs 3.5.29.1.
+    """
 
     permanent_export = "1000"
 
@@ -595,7 +598,7 @@ def enforce_customs_line_content(commodities: typing.List[models.Commodity]) -> 
 
     Every CN22, CN23, and customs invoice line sends ``content`` from the
     commodity title, or its description when the title is empty;
-    booking.swagger.json requires ``content`` with minLength 1 on every
+    Booking APIs 3.5.29.1 requires ``content`` with minLength 1 on every
     customs line object. All offending commodities are named at once.
     """
     missing = [

@@ -180,7 +180,7 @@ def application_object(environ: typing.Mapping[str, str]) -> typing.Optional[dic
     The id comes from ``POSTNORD_LIVE_APPLICATION_ID`` (the name the user
     chose for the real id; the value is non-secret per the repo carve-out),
     falling back to ``POSTNORD_APPLICATION_ID``. The booking API takes
-    ``applicationId`` as an integer (vendor/booking.swagger.json) and
+    ``applicationId`` as an integer (Booking APIs 3.5.29.1) and
     rejects anything but a 4-digit value (SACUS-BR-24100901, observed on
     the p3-91 customs-less booking), so a present-but-malformed id refuses
     rather than books. ``name`` stays the required client-integration name
