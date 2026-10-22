@@ -29,7 +29,7 @@ postnord = "karrio.plugins.postnord:METADATA"
 
 [tool.primepack]
 # The Joaqim/karrio fork snapshot tag each release is tested against.
-karrio-ref = "snapshot-2026.10.19.1"
+karrio-ref = "snapshot-2026.10.22.1"
 
 [tool.setuptools]
 zip-safe = false
