@@ -11,6 +11,7 @@ from unittest.mock import patch
 import karrio.sdk as karrio
 import karrio.lib as lib
 import karrio.core.models as models
+import karrio.references as references
 
 from .fixture import _settings, gateway, gateway_with_default_notification
 from .test_shipment import ShipmentPayload, ShipmentResponse
@@ -290,6 +291,13 @@ class TestNotificationRequirement(unittest.TestCase):
                     f"the connection's postnord_default_notification {shown} is not "
                     "one of sms, email, letter",
                 )
+
+    def test_default_notification_is_published_as_a_channel_list(self):
+        config = references.collect_references()["connection_configs"]["postnord"]
+        self.assertEqual(config["postnord_default_notification"]["type"], "list")
+        self.assertEqual(
+            config["postnord_default_notification"]["enum"], ["sms", "email", "letter"]
+        )
 
     def test_explicit_request_is_not_extended_by_the_default(self):
         codes, ctx = _codes(
