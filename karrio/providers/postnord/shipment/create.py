@@ -314,7 +314,7 @@ def _notification_defaulted_message(
         message=(
             f"No consignee notification was requested for {service_name}; "
             f"booked options.{provider_units.option_name(code)} ({code}) "
-            "from the connection's default_notification"
+            "from postnord_default_notification"
         ),
     )
 
@@ -946,8 +946,20 @@ def shipment_request(
     if service_point and "A7" not in additional_service_codes:
         additional_service_codes.append("A7")
 
+    requested_notification = (payload.options or {}).get("postnord_default_notification")
     notification_defaulted, notification_error = _required_notification(
-        service, recipient, options, additional_service_codes, settings
+        service,
+        recipient,
+        options,
+        additional_service_codes,
+        *(
+            (requested_notification, "options.postnord_default_notification")
+            if requested_notification
+            else (
+                settings.connection_config.postnord_default_notification.state,
+                "the connection's postnord_default_notification",
+            )
+        ),
     )
     if notification_defaulted:
         additional_service_codes.append(notification_defaulted)
@@ -1221,13 +1233,15 @@ def _required_notification(
     recipient,
     options,
     additional_service_codes: typing.List[str],
-    settings: provider_utils.Settings,
+    postnord_default_notification: typing.Optional[str],
+    default_notification_source: str,
 ) -> typing.Tuple[typing.Optional[str], typing.Optional[str]]:
     """Resolve a service's mandatory consignee notification.
 
-    Returns ``(defaulted_code, error)``: the code the connection's
-    ``default_notification`` books when the request names no required
-    channel, or the rejection message when no default channel is usable.
+    Returns ``(defaulted_code, error)``: the code ``postnord_default_notification``
+    (request option, else connection config) books when the request names
+    no required channel, or the rejection message when no default channel
+    is usable or the preference is unknown.
     A default channel needs the consignee contact it notifies on and is
     never booked against an explicit opt-out.
     """
@@ -1237,10 +1251,15 @@ def _required_notification(
     if not required or any(code in additional_service_codes for code in required):
         return None, None
 
+    preferences = provider_units.DEFAULT_NOTIFICATION_PREFERENCES
+    if postnord_default_notification and str(postnord_default_notification) not in preferences:
+        return None, (
+            f"{default_notification_source} '{postnord_default_notification}' is not one of "
+            + ", ".join(preferences)
+        )
+
     declined = {option.code for _, option in options.items() if not option.state}
-    preference = provider_units.DEFAULT_NOTIFICATION_PREFERENCES.get(
-        settings.connection_config.default_notification.state or "", ()
-    )
+    preference = preferences.get(str(postnord_default_notification or ""), ())
     defaulted = next(
         (
             code
@@ -1262,7 +1281,7 @@ def _required_notification(
         None
         if defaulted
         else f"{service_name} requires a consignee notification: set "
-        f"{' or '.join(choices)}, or the connection's default_notification"
+        f"{' or '.join(choices)}, or the connection's postnord_default_notification"
     )
     return defaulted, error
 

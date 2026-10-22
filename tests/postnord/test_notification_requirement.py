@@ -13,7 +13,7 @@ import karrio.lib as lib
 import karrio.core.models as models
 import karrio.references as references
 
-from .fixture import gateway, gateway_with_default_notification
+from .fixture import _settings, gateway, gateway_with_default_notification
 from .test_shipment import ShipmentPayload, ShipmentResponse
 
 COLLECT_PAYLOAD = {**ShipmentPayload, "service": "postnord_mypack_collect", "options": {}}
@@ -58,7 +58,7 @@ class TestNotificationRequirement(unittest.TestCase):
             messages[0].message,
             "postnord_mypack_collect requires a consignee notification: set "
             "options.postnord_notify_by_letter, options.sms_notification or "
-            "options.email_notification, or the connection's default_notification",
+            "options.email_notification, or the connection's postnord_default_notification",
         )
 
     def test_letter_does_not_satisfy_the_requirement_outside_the_nordics(self):
@@ -99,8 +99,8 @@ class TestNotificationRequirement(unittest.TestCase):
         self.assertEqual(
             warning.message,
             "No consignee notification was requested for postnord_mypack_collect; "
-            "booked options.sms_notification (A3) from the connection's "
-            "default_notification",
+            "booked options.sms_notification (A3) from "
+            "postnord_default_notification",
         )
 
     def test_default_preference_order_follows_consignee_contacts(self):
@@ -138,10 +138,48 @@ class TestNotificationRequirement(unittest.TestCase):
                 self.assertIsNotNone(ctx.get("notification_error"))
                 self.assertIsNone(ctx.get("notification_defaulted"))
 
+    def test_request_option_overrides_the_connection_default(self):
+        cases = [
+            (gateway, "email_then_sms", ["A4"]),
+            (gateway_with_default_notification["sms"], "email", ["A4"]),
+            (gateway_with_default_notification["sms"], None, ["A3"]),
+        ]
+        for request_gateway, preference, expected in cases:
+            with self.subTest(preference=preference):
+                codes, ctx = _codes(
+                    request_gateway, _payload({"postnord_default_notification": preference})
+                )
+                self.assertEqual(codes, expected)
+                self.assertIsNone(ctx.get("notification_error"))
+
+    def test_unknown_request_preference_is_rejected(self):
+        shipment, messages, mock = _book(
+            gateway_with_default_notification["sms"],
+            _payload({"postnord_default_notification": "pigeon"}),
+        )
+        mock.assert_not_called()
+        self.assertEqual([m.code for m in messages], ["NOTIFICATION_REQUIRED"])
+        self.assertEqual(
+            messages[0].message,
+            "options.postnord_default_notification 'pigeon' is not one of sms, email, "
+            "letter, sms_then_email, email_then_sms",
+        )
+
+    def test_unknown_connection_preference_names_its_source(self):
+        unknown = karrio.gateway["postnord"].create(
+            dict(_settings, config=dict(postnord_default_notification="pigeon"))
+        )
+        _, ctx = _codes(unknown, _payload())
+        self.assertTrue(
+            ctx["notification_error"].startswith(
+                "the connection's postnord_default_notification 'pigeon'"
+            )
+        )
+
     def test_default_notification_is_published_as_a_choice(self):
         config = references.collect_references()["connection_configs"]["postnord"]
         self.assertEqual(
-            config["default_notification"]["enum"],
+            config["postnord_default_notification"]["enum"],
             ["sms", "email", "letter", "sms_then_email", "email_then_sms"],
         )
 

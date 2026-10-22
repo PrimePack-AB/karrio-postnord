@@ -188,7 +188,7 @@ gateway_with_standalone_customs = karrio.gateway["postnord"].create(
 # channel when a MyPack Collect (19) request names none.
 gateway_with_default_notification = {
     preference: karrio.gateway["postnord"].create(
-        dict(_settings, config=dict(default_notification=preference))
+        dict(_settings, config=dict(postnord_default_notification=preference))
     )
     for preference in ["sms", "email", "letter", "sms_then_email", "email_then_sms"]
 }
