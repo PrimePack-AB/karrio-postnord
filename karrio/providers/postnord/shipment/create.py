@@ -911,14 +911,12 @@ def shipment_request(
     ]
 
     # A chosen service point switches the product into optional-service-point
-    # mode (A7) and pairs with SMS (A3) when the consignee has a phone, per
-    # the official "MyPack Collect (19) + Addon: Optional Servicepoint" sample.
+    # mode (A7), per the official "MyPack Collect (19) + Addon: Optional
+    # Servicepoint" sample. Notification addons stay explicit: SMS (A3) is
+    # booked only through sms_notification.
     service_point = _service_point_details(options)
-    if service_point:
-        if "A7" not in additional_service_codes:
-            additional_service_codes.append("A7")
-        if recipient.phone_number and "A3" not in additional_service_codes:
-            additional_service_codes.append("A3")
+    if service_point and "A7" not in additional_service_codes:
+        additional_service_codes.append("A7")
 
     # Booking locale: request options.language > connection config language >
     # recipient country (when config locale_by_recipient is enabled) > "en".
