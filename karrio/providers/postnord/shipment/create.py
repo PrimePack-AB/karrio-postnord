@@ -1233,16 +1233,25 @@ def _notification_channels(
 ) -> typing.Tuple[typing.Tuple[str, ...], typing.Optional[typing.Any]]:
     """Normalize ``postnord_default_notification`` to its ordered channel codes.
 
-    Returns ``(codes, unknown)``: a single string is a one-item list,
-    duplicates collapse keeping the first occurrence, and None, "" or []
+    Returns ``(codes, unknown)``: a single string is a one-item list, a
+    LEGACY_NOTIFICATION_PRESETS entry expands in place, duplicates collapse keeping the first occurrence, and None, "" or []
     yield no codes. ``unknown`` is the first entry (or the whole value, when
     it is neither a string nor a list) that names no NotificationChannel.
     """
-    entries = [value] if isinstance(value, str) else value
-    if entries in (None, "", []):
+    listed = [value] if isinstance(value, str) else value
+    if listed in (None, [""], []):
         return (), None
-    if not isinstance(entries, (list, tuple)):
+    if not isinstance(listed, (list, tuple)):
         return (), value
+
+    presets = provider_units.LEGACY_NOTIFICATION_PRESETS
+    entries = [
+        channel
+        for entry in listed
+        for channel in (
+            presets[entry] if isinstance(entry, str) and entry in presets else (entry,)
+        )
+    ]
 
     unknown = next(
         (

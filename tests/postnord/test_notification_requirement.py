@@ -148,6 +148,44 @@ class TestNotificationRequirement(unittest.TestCase):
         )
         self.assertEqual(codes, ["A4"])
 
+    def test_released_presets_are_accepted_as_channel_orders(self):
+        cases = [
+            ("sms_then_email", {}, ["A3"]),
+            ("sms_then_email", {"phone_number": None}, ["A4"]),
+            ("email_then_sms", {}, ["A4"]),
+            ("email_then_sms", {"email": None}, ["A3"]),
+            (["email_then_sms", "letter"], {"phone_number": None, "email": None}, ["A2"]),
+            (["sms", "email_then_sms"], {"phone_number": None}, ["A4"]),
+            (["letter", "sms_then_email"], {}, ["A2"]),
+        ]
+        for channels, recipient, expected in cases:
+            with self.subTest(source="config", channels=channels, recipient=recipient):
+                codes, ctx = _codes(
+                    gateway_with_default_notification(channels), _payload(**recipient)
+                )
+                self.assertEqual(codes, expected)
+                self.assertIsNone(ctx.get("notification_error"))
+            with self.subTest(source="request", channels=channels, recipient=recipient):
+                codes, ctx = _codes(
+                    gateway,
+                    _payload({"postnord_default_notification": channels}, **recipient),
+                )
+                self.assertEqual(codes, expected)
+                self.assertIsNone(ctx.get("notification_error"))
+
+    def test_released_presets_expand_in_place_before_duplicates_collapse(self):
+        cases = [
+            (["email", "sms_then_email"], {}, ["A4"]),
+            (["email", "sms_then_email"], {"email": None}, ["A3"]),
+            (["sms_then_email", "email_then_sms"], {"phone_number": None}, ["A4"]),
+        ]
+        for channels, recipient, expected in cases:
+            with self.subTest(channels=channels, recipient=recipient):
+                codes, _ = _codes(
+                    gateway_with_default_notification(channels), _payload(**recipient)
+                )
+                self.assertEqual(codes, expected)
+
     def test_empty_or_null_default_is_unset(self):
         for channels in [[], None]:
             with self.subTest(source="config", channels=channels):
@@ -207,7 +245,7 @@ class TestNotificationRequirement(unittest.TestCase):
         cases = [
             ("pigeon", "'pigeon'"),
             (["sms", "pigeon"], "'pigeon'"),
-            ("sms_then_email", "'sms_then_email'"),
+            ("sms_or_email", "'sms_or_email'"),
             (3, "3"),
             ({"sms": True}, "{'sms': True}"),
         ]

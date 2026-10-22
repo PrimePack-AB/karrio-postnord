@@ -44,6 +44,14 @@ class NotificationChannel(lib.StrEnum):
     letter = "A2"
 
 
+# postnord_default_notification presets released in 2026.10.4, accepted as the
+# channel orders they named.
+LEGACY_NOTIFICATION_PRESETS: typing.Dict[str, typing.Tuple[str, ...]] = {
+    "sms_then_email": ("sms", "email"),
+    "email_then_sms": ("email", "sms"),
+}
+
+
 class ConnectionConfig(lib.Enum):
     """PostNord connection configuration options."""
 
