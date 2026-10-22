@@ -36,14 +36,12 @@ class LabelSize(lib.StrEnum):
     ste = "ste"
 
 
-class NotificationPreference(lib.StrEnum):
-    """``postnord_default_notification`` values; see DEFAULT_NOTIFICATION_PREFERENCES."""
+class NotificationChannel(lib.StrEnum):
+    """``postnord_default_notification`` entries, mapped to the code each books."""
 
-    sms = "sms"
-    email = "email"
-    letter = "letter"
-    sms_then_email = "sms_then_email"
-    email_then_sms = "email_then_sms"
+    sms = "A3"
+    email = "A4"
+    letter = "A2"
 
 
 class ConnectionConfig(lib.Enum):
@@ -87,10 +85,12 @@ class ConnectionConfig(lib.Enum):
     )
 
     # Consignee notification booked when a service that requires one (see
-    # NOTIFICATION_REQUIRED_SERVICES) is requested with none; a key of
-    # DEFAULT_NOTIFICATION_PREFERENCES. Unset rejects such a request.
+    # NOTIFICATION_REQUIRED_SERVICES) is requested with none: an ordered list of
+    # NotificationChannel names. Unset rejects such a request. The shipment
+    # builder reads the raw config value, since a list OptionEnum splits a
+    # single-channel string into characters.
     postnord_default_notification = lib.OptionEnum(
-        "postnord_default_notification", NotificationPreference
+        "postnord_default_notification", list
     )
 
 
@@ -242,15 +242,6 @@ NOTIFICATION_REQUIRED_SERVICES: typing.Dict[str, typing.Tuple[str, ...]] = {
 }
 NORDIC_COUNTRIES = frozenset({"SE", "DK", "NO", "FI"})
 
-# postnord_default_notification values: the channels tried in order, each booked only
-# when the consignee carries its contact (NOTIFICATION_CONTACTS).
-DEFAULT_NOTIFICATION_PREFERENCES: typing.Dict[str, typing.Tuple[str, ...]] = {
-    NotificationPreference.sms: ("A3",),
-    NotificationPreference.email: ("A4",),
-    NotificationPreference.letter: ("A2",),
-    NotificationPreference.sms_then_email: ("A3", "A4"),
-    NotificationPreference.email_then_sms: ("A4", "A3"),
-}
 NOTIFICATION_CONTACTS: typing.Dict[str, str] = {"A3": "phone_number", "A4": "email"}
 NOTIFICATION_DEFAULTED = "postnord_notification_defaulted"
 

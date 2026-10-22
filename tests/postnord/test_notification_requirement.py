@@ -11,7 +11,6 @@ from unittest.mock import patch
 import karrio.sdk as karrio
 import karrio.lib as lib
 import karrio.core.models as models
-import karrio.references as references
 
 from .fixture import _settings, gateway, gateway_with_default_notification
 from .test_shipment import ShipmentPayload, ShipmentResponse
@@ -87,9 +86,9 @@ class TestNotificationRequirement(unittest.TestCase):
         self.assertEqual(codes, [])
         self.assertIsNone(ctx.get("notification_error"))
 
-    def test_default_books_the_preferred_channel_with_a_warning(self):
+    def test_default_books_the_first_usable_channel_with_a_warning(self):
         shipment, messages, mock = _book(
-            gateway_with_default_notification["sms_then_email"], _payload()
+            gateway_with_default_notification(["sms", "email"]), _payload()
         )
         self.assertIsNotNone(shipment)
         booked = lib.to_dict(mock.call_args.kwargs["data"])["shipment"][0]
@@ -103,89 +102,146 @@ class TestNotificationRequirement(unittest.TestCase):
             "postnord_default_notification",
         )
 
-    def test_default_preference_order_follows_consignee_contacts(self):
+    def test_default_channel_order_follows_consignee_contacts(self):
         cases = [
-            ("sms", {}, ["A3"]),
-            ("email", {}, ["A4"]),
-            ("letter", {}, ["A2"]),
-            ("sms_then_email", {}, ["A3"]),
-            ("sms_then_email", {"phone_number": None}, ["A4"]),
-            ("email_then_sms", {}, ["A4"]),
-            ("email_then_sms", {"email": None}, ["A3"]),
+            (["sms"], {}, ["A3"]),
+            (["email"], {}, ["A4"]),
+            (["letter"], {}, ["A2"]),
+            (["sms", "email"], {}, ["A3"]),
+            (["sms", "email"], {"phone_number": None}, ["A4"]),
+            (["email", "sms"], {}, ["A4"]),
+            (["email", "sms"], {"email": None}, ["A3"]),
+            # Letter as the last fallback needs no consignee contact.
+            (["sms", "email", "letter"], {"phone_number": None, "email": None}, ["A2"]),
+            (["letter", "sms"], {}, ["A2"]),
         ]
-        for preference, recipient, expected in cases:
-            with self.subTest(preference=preference, recipient=recipient):
+        for channels, recipient, expected in cases:
+            with self.subTest(channels=channels, recipient=recipient):
                 codes, ctx = _codes(
-                    gateway_with_default_notification[preference],
+                    gateway_with_default_notification(channels),
                     _payload(**recipient),
                 )
                 self.assertEqual(codes, expected)
                 self.assertEqual(ctx.get("notification_defaulted"), expected[0])
 
+    def test_single_channel_string_is_a_one_item_list(self):
+        for channel, expected in [("sms", ["A3"]), ("email", ["A4"]), ("letter", ["A2"])]:
+            with self.subTest(source="config", channel=channel):
+                codes, ctx = _codes(gateway_with_default_notification(channel), _payload())
+                self.assertEqual(codes, expected)
+                self.assertIsNone(ctx.get("notification_error"))
+            with self.subTest(source="request", channel=channel):
+                codes, ctx = _codes(
+                    gateway, _payload({"postnord_default_notification": channel})
+                )
+                self.assertEqual(codes, expected)
+                self.assertIsNone(ctx.get("notification_error"))
+
+    def test_duplicate_channels_collapse_keeping_first_occurrence(self):
+        codes, ctx = _codes(
+            gateway_with_default_notification(["email", "sms", "email"]),
+            _payload(email=None),
+        )
+        self.assertEqual(codes, ["A3"])
+        codes, ctx = _codes(
+            gateway_with_default_notification(["email", "sms", "email"]), _payload()
+        )
+        self.assertEqual(codes, ["A4"])
+
+    def test_empty_or_null_default_is_unset(self):
+        for channels in [[], None]:
+            with self.subTest(source="config", channels=channels):
+                codes, ctx = _codes(gateway_with_default_notification(channels), _payload())
+                self.assertEqual(codes, [])
+                self.assertTrue(
+                    ctx["notification_error"].startswith(
+                        "postnord_mypack_collect requires a consignee notification"
+                    )
+                )
+            with self.subTest(source="request", channels=channels):
+                codes, ctx = _codes(
+                    gateway_with_default_notification(["sms"]),
+                    _payload({"postnord_default_notification": channels}),
+                )
+                self.assertEqual(codes, ["A3"])
+                self.assertIsNone(ctx.get("notification_error"))
+
     def test_default_without_a_usable_channel_is_rejected(self):
+        germany = dict(country_code="DE", postal_code="10115", city="Berlin", state_code=None)
         cases = [
-            ("sms", _payload(phone_number=None)),
-            ("sms_then_email", _payload(phone_number=None, email=None)),
+            (["sms"], _payload(phone_number=None)),
+            (["sms", "email"], _payload(phone_number=None, email=None)),
             # An explicit opt-out is never overridden by the default.
-            ("sms", _payload({"sms_notification": False})),
+            (["sms"], _payload({"sms_notification": False})),
             # Letter is not available outside the Nordics.
-            ("letter", _payload(country_code="DE", postal_code="10115", city="Berlin", state_code=None)),
+            (["letter"], _payload(**germany)),
+            (
+                ["sms", "email", "letter"],
+                _payload(phone_number=None, email=None, **germany),
+            ),
         ]
-        for preference, payload in cases:
-            with self.subTest(preference=preference):
-                codes, ctx = _codes(gateway_with_default_notification[preference], payload)
+        for channels, payload in cases:
+            with self.subTest(channels=channels):
+                codes, ctx = _codes(gateway_with_default_notification(channels), payload)
                 self.assertEqual(codes, [])
                 self.assertIsNotNone(ctx.get("notification_error"))
                 self.assertIsNone(ctx.get("notification_defaulted"))
 
     def test_request_option_overrides_the_connection_default(self):
         cases = [
-            (gateway, "email_then_sms", ["A4"]),
-            (gateway_with_default_notification["sms"], "email", ["A4"]),
-            (gateway_with_default_notification["sms"], None, ["A3"]),
+            (gateway, ["email", "sms"], ["A4"]),
+            (gateway_with_default_notification(["sms"]), ["email"], ["A4"]),
+            (gateway_with_default_notification(["sms", "email"]), ["email", "sms"], ["A4"]),
+            (gateway_with_default_notification(["sms"]), "email", ["A4"]),
+            (gateway_with_default_notification(["sms"]), None, ["A3"]),
         ]
-        for request_gateway, preference, expected in cases:
-            with self.subTest(preference=preference):
+        for request_gateway, channels, expected in cases:
+            with self.subTest(channels=channels):
                 codes, ctx = _codes(
-                    request_gateway, _payload({"postnord_default_notification": preference})
+                    request_gateway, _payload({"postnord_default_notification": channels})
                 )
                 self.assertEqual(codes, expected)
                 self.assertIsNone(ctx.get("notification_error"))
 
-    def test_unknown_request_preference_is_rejected(self):
-        shipment, messages, mock = _book(
-            gateway_with_default_notification["sms"],
-            _payload({"postnord_default_notification": "pigeon"}),
-        )
-        mock.assert_not_called()
-        self.assertEqual([m.code for m in messages], ["NOTIFICATION_REQUIRED"])
-        self.assertEqual(
-            messages[0].message,
-            "options.postnord_default_notification 'pigeon' is not one of sms, email, "
-            "letter, sms_then_email, email_then_sms",
-        )
+    def test_unknown_request_channel_is_rejected(self):
+        cases = [
+            ("pigeon", "'pigeon'"),
+            (["sms", "pigeon"], "'pigeon'"),
+            ("sms_then_email", "'sms_then_email'"),
+            (3, "3"),
+            ({"sms": True}, "{'sms': True}"),
+        ]
+        for value, shown in cases:
+            with self.subTest(value=value):
+                shipment, messages, mock = _book(
+                    gateway_with_default_notification(["sms"]),
+                    _payload({"postnord_default_notification": value}),
+                )
+                mock.assert_not_called()
+                self.assertIsNone(shipment)
+                self.assertEqual([m.code for m in messages], ["NOTIFICATION_REQUIRED"])
+                self.assertEqual(
+                    messages[0].message,
+                    f"options.postnord_default_notification {shown} is not one of "
+                    "sms, email, letter",
+                )
 
-    def test_unknown_connection_preference_names_its_source(self):
-        unknown = karrio.gateway["postnord"].create(
-            dict(_settings, config=dict(postnord_default_notification="pigeon"))
-        )
-        _, ctx = _codes(unknown, _payload())
-        self.assertTrue(
-            ctx["notification_error"].startswith(
-                "the connection's postnord_default_notification 'pigeon'"
-            )
-        )
-
-    def test_default_notification_is_published_as_a_choice(self):
-        config = references.collect_references()["connection_configs"]["postnord"]
-        self.assertEqual(
-            config["postnord_default_notification"]["enum"],
-            ["sms", "email", "letter", "sms_then_email", "email_then_sms"],
-        )
+    def test_unknown_connection_channel_names_its_source(self):
+        for value, shown in [
+            ("pigeon", "'pigeon'"),
+            (["email", "pigeon"], "'pigeon'"),
+        ]:
+            with self.subTest(value=value):
+                _, ctx = _codes(gateway_with_default_notification(value), _payload())
+                self.assertEqual(
+                    ctx["notification_error"],
+                    f"the connection's postnord_default_notification {shown} is not "
+                    "one of sms, email, letter",
+                )
 
     def test_explicit_request_is_not_extended_by_the_default(self):
         codes, ctx = _codes(
-            gateway_with_default_notification["sms"],
+            gateway_with_default_notification(["sms"]),
             _payload({"email_notification": True}),
         )
         self.assertEqual(codes, ["A4"])

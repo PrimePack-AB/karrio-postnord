@@ -954,9 +954,9 @@ def shipment_request(
         additional_service_codes,
         *(
             (requested_notification, "options.postnord_default_notification")
-            if requested_notification
+            if requested_notification not in (None, "", [])
             else (
-                settings.connection_config.postnord_default_notification.state,
+                (settings.config or {}).get("postnord_default_notification"),
                 "the connection's postnord_default_notification",
             )
         ),
@@ -1228,20 +1228,56 @@ def shipment_request(
     )
 
 
+def _notification_channels(
+    value: typing.Any,
+) -> typing.Tuple[typing.Tuple[str, ...], typing.Optional[typing.Any]]:
+    """Normalize ``postnord_default_notification`` to its ordered channel codes.
+
+    Returns ``(codes, unknown)``: a single string is a one-item list,
+    duplicates collapse keeping the first occurrence, and None, "" or []
+    yield no codes. ``unknown`` is the first entry (or the whole value, when
+    it is neither a string nor a list) that names no NotificationChannel.
+    """
+    entries = [value] if isinstance(value, str) else value
+    if entries in (None, "", []):
+        return (), None
+    if not isinstance(entries, (list, tuple)):
+        return (), value
+
+    unknown = next(
+        (
+            entry
+            for entry in entries
+            if not isinstance(entry, str)
+            or entry not in provider_units.NotificationChannel.__members__
+        ),
+        None,
+    )
+    codes = tuple(
+        dict.fromkeys(
+            provider_units.NotificationChannel[entry].value
+            for entry in entries
+            if unknown is None
+        )
+    )
+    return codes, unknown
+
+
 def _required_notification(
     service: str,
     recipient,
     options,
     additional_service_codes: typing.List[str],
-    postnord_default_notification: typing.Optional[str],
+    postnord_default_notification: typing.Any,
     default_notification_source: str,
 ) -> typing.Tuple[typing.Optional[str], typing.Optional[str]]:
     """Resolve a service's mandatory consignee notification.
 
-    Returns ``(defaulted_code, error)``: the code ``postnord_default_notification``
-    (request option, else connection config) books when the request names
-    no required channel, or the rejection message when no default channel
-    is usable or the preference is unknown.
+    Returns ``(defaulted_code, error)``: the code of the first channel in
+    ``postnord_default_notification`` (request option, else connection
+    config) that the service requires, when the request names no required
+    channel; or the rejection message when no listed channel is usable or
+    an entry is not a channel.
     A default channel needs the consignee contact it notifies on and is
     never booked against an explicit opt-out.
     """
@@ -1251,19 +1287,18 @@ def _required_notification(
     if not required or any(code in additional_service_codes for code in required):
         return None, None
 
-    preferences = provider_units.DEFAULT_NOTIFICATION_PREFERENCES
-    if postnord_default_notification and str(postnord_default_notification) not in preferences:
+    channels, unknown = _notification_channels(postnord_default_notification)
+    if unknown is not None:
         return None, (
-            f"{default_notification_source} '{postnord_default_notification}' is not one of "
-            + ", ".join(preferences)
+            f"{default_notification_source} {unknown!r} is not one of "
+            + ", ".join(provider_units.NotificationChannel.__members__)
         )
 
     declined = {option.code for _, option in options.items() if not option.state}
-    preference = preferences.get(str(postnord_default_notification or ""), ())
     defaulted = next(
         (
             code
-            for code in preference
+            for code in channels
             if code in required
             and code not in declined
             and (
