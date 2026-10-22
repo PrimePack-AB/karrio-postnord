@@ -821,6 +821,18 @@ class TestPostNordShipment(unittest.TestCase):
                 lib.to_dict(parsed_response), ParsedMissingContentErrorResponse
             )
 
+    def test_parse_addon_not_allowed_error_response(self):
+        # Postpaket Utrikes (91) SE->GB rejects SMS notification (A3); the
+        # message names the unified option the consumer sent.
+        with patch("karrio.mappers.postnord.proxy.lib.request") as mock:
+            mock.return_value = AddonNotAllowedErrorResponse
+            parsed_response = (
+                karrio.Shipment.create(self.ShipmentRequest).from_(gateway).parse()
+            )
+            self.assertListEqual(
+                lib.to_dict(parsed_response), ParsedAddonNotAllowedErrorResponse
+            )
+
     def test_parse_error_response_without_explanation_text(self):
         with patch("karrio.mappers.postnord.proxy.lib.request") as mock:
             mock.return_value = NoExplanationErrorResponse
@@ -4114,6 +4126,46 @@ ParsedMissingContentErrorResponse = [
                 "references": {
                     "CustomerOriginValidationError.type": "MANDATORY_FIELDS_MISSING",
                     "CustomerOriginValidationError.subType": "CONTENT",
+                },
+            },
+        }
+    ],
+]
+
+AddonNotAllowedErrorResponse = """{
+  "message": "General client indata error",
+  "compositeFault": {
+    "faults": [
+      {
+        "explanationText": "Following addon(s) A3 not allowed for this product",
+        "faultCode": "SAE-BR-25020403",
+        "faultReferences": [
+          {"key": "CustomerOriginValidationError.type", "value": "ADDON_FAULTY"}
+        ]
+      }
+    ]
+  }
+}"""
+
+ParsedAddonNotAllowedErrorResponse = [
+    None,
+    [
+        {
+            "carrier_id": "postnord",
+            "carrier_name": "postnord",
+            "code": "SAE-BR-25020403",
+            "message": (
+                "Following addon(s) A3 not allowed for this product "
+                "(A3 is options.postnord_notify_by_sms / options.sms_notification; "
+                "not available with the booked service)"
+            ),
+            "details": {
+                "summary": "General client indata error",
+                "references": {
+                    "CustomerOriginValidationError.type": "ADDON_FAULTY",
+                },
+                "rejected_options": {
+                    "A3": ["postnord_notify_by_sms", "sms_notification"],
                 },
             },
         }

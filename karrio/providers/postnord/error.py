@@ -1,9 +1,11 @@
 """Karrio PostNord error parser."""
 
+import re
 import typing
 import karrio.lib as lib
 import karrio.core.models as models
 import karrio.providers.postnord.utils as provider_utils
+import karrio.providers.postnord.units as provider_units
 
 
 FAULT_HINTS: typing.Dict[str, str] = {
@@ -74,7 +76,10 @@ def parse_error_response(
             carrier_name=settings.carrier_name,
             code=lib.identity(fault.get("faultCode") or _sub_type(fault)),
             message=lib.identity(
-                _hinted(fault.get("explanationText"), _sub_type(fault))
+                _addon_hinted(
+                    _hinted(fault.get("explanationText"), _sub_type(fault)),
+                    _rejected_options(fault),
+                )
                 or body.get("message")
             ),
             details=lib.to_dict(
@@ -93,6 +98,7 @@ def parse_error_response(
                         for ref in (fault.get("faultReferences") or [])
                     }
                     or None,
+                    "rejected_options": _rejected_options(fault) or None,
                 }
             ),
         )
@@ -169,6 +175,47 @@ def _hinted(
     """Append the unified field to correct for fault subtypes with a known hint."""
     hint = FAULT_HINTS.get(sub_type or "")
     return f"{explanation} ({hint})" if explanation and hint else explanation
+
+
+def _rejected_options(fault: dict) -> typing.Dict[str, typing.List[str]]:
+    """Map the addon codes of an ADDON_FAULTY fault to the option names that book them.
+
+    PostNord names the rejected additionalServiceCode values only inside
+    ``explanationText`` ("Following addon(s) A3 not allowed for this product").
+    """
+    is_addon_fault = any(
+        ref.get("value") == "ADDON_FAULTY"
+        for ref in (fault.get("faultReferences") or [])
+    )
+    tokens = re.findall(r"[A-Za-z0-9]+", fault.get("explanationText") or "")
+    return {
+        code: names
+        for code in dict.fromkeys(tokens if is_addon_fault else [])
+        for names in [_option_names(code)]
+        if names
+    }
+
+
+def _option_names(code: str) -> typing.List[str]:
+    return [
+        name
+        for name, member in provider_units.ShippingOption.__members__.items()
+        if getattr(member.value, "code", None) == code
+    ]
+
+
+def _addon_hinted(
+    explanation: typing.Optional[str],
+    rejected: typing.Dict[str, typing.List[str]],
+) -> typing.Optional[str]:
+    """Name the request options behind each rejected addon code."""
+    if not (explanation and rejected):
+        return explanation
+    named = "; ".join(
+        f"{code} is " + " / ".join(f"options.{name}" for name in names)
+        for code, names in rejected.items()
+    )
+    return f"{explanation} ({named}; not available with the booked service)"
 
 
 def _has_fault(error_response: dict) -> bool:
