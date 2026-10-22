@@ -187,7 +187,7 @@ class TestNotificationRequirement(unittest.TestCase):
                 self.assertEqual(codes, expected)
 
     def test_empty_or_null_default_is_unset(self):
-        for channels in [[], None]:
+        for channels in [[], None, "", "  ", [""], ["", " "]]:
             with self.subTest(source="config", channels=channels):
                 codes, ctx = _codes(gateway_with_default_notification(channels), _payload())
                 self.assertEqual(codes, [])
@@ -200,6 +200,19 @@ class TestNotificationRequirement(unittest.TestCase):
                 codes, ctx = _codes(
                     gateway_with_default_notification(["sms"]),
                     _payload({"postnord_default_notification": channels}),
+                )
+                self.assertEqual(codes, ["A3"])
+                self.assertIsNone(ctx.get("notification_error"))
+
+    def test_blank_entries_are_ignored(self):
+        for channels in [["", "sms"], [" ", "sms", ""]]:
+            with self.subTest(source="config", channels=channels):
+                codes, ctx = _codes(gateway_with_default_notification(channels), _payload())
+                self.assertEqual(codes, ["A3"])
+                self.assertIsNone(ctx.get("notification_error"))
+            with self.subTest(source="request", channels=channels):
+                codes, ctx = _codes(
+                    gateway, _payload({"postnord_default_notification": channels})
                 )
                 self.assertEqual(codes, ["A3"])
                 self.assertIsNone(ctx.get("notification_error"))
@@ -268,6 +281,7 @@ class TestNotificationRequirement(unittest.TestCase):
         for value, shown in [
             ("pigeon", "'pigeon'"),
             (["email", "pigeon"], "'pigeon'"),
+            (3, "3"),
         ]:
             with self.subTest(value=value):
                 _, ctx = _codes(gateway_with_default_notification(value), _payload())

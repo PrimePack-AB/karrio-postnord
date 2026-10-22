@@ -954,9 +954,9 @@ def shipment_request(
         additional_service_codes,
         *(
             (requested_notification, "options.postnord_default_notification")
-            if requested_notification not in (None, "", [])
+            if _notification_channels(requested_notification) != ((), None)
             else (
-                (settings.config or {}).get("postnord_default_notification"),
+                settings.connection_config.postnord_default_notification.state,
                 "the connection's postnord_default_notification",
             )
         ),
@@ -1233,13 +1233,14 @@ def _notification_channels(
 ) -> typing.Tuple[typing.Tuple[str, ...], typing.Optional[typing.Any]]:
     """Normalize ``postnord_default_notification`` to its ordered channel codes.
 
-    Returns ``(codes, unknown)``: a single string is a one-item list, a
-    LEGACY_NOTIFICATION_PRESETS entry expands in place, duplicates collapse keeping the first occurrence, and None, "" or []
-    yield no codes. ``unknown`` is the first entry (or the whole value, when
+    Returns ``(codes, unknown)``: a single string is a one-item list, blank
+    entries are dropped, a LEGACY_NOTIFICATION_PRESETS entry expands in place,
+    and duplicates collapse keeping the first occurrence; None or a list with
+    no entries left yields no codes. ``unknown`` is the first entry (or the whole value, when
     it is neither a string nor a list) that names no NotificationChannel.
     """
     listed = [value] if isinstance(value, str) else value
-    if listed in (None, [""], []):
+    if listed is None:
         return (), None
     if not isinstance(listed, (list, tuple)):
         return (), value
@@ -1248,6 +1249,7 @@ def _notification_channels(
     entries = [
         channel
         for entry in listed
+        if not (isinstance(entry, str) and not entry.strip())
         for channel in (
             presets[entry] if isinstance(entry, str) and entry in presets else (entry,)
         )

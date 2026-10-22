@@ -94,11 +94,9 @@ class ConnectionConfig(lib.Enum):
 
     # Consignee notification booked when a service that requires one (see
     # NOTIFICATION_REQUIRED_SERVICES) is requested with none: an ordered list of
-    # NotificationChannel names. Unset rejects such a request. The shipment
-    # builder reads the raw config value, since a list OptionEnum splits a
-    # single-channel string into characters.
+    # NotificationChannel names. Unset rejects such a request.
     postnord_default_notification = lib.OptionEnum(
-        "postnord_default_notification", list
+        "postnord_default_notification", typing.List[NotificationChannel]
     )
 
 
