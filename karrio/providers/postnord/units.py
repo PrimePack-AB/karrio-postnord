@@ -36,6 +36,16 @@ class LabelSize(lib.StrEnum):
     ste = "ste"
 
 
+class NotificationPreference(lib.StrEnum):
+    """``default_notification`` values; see DEFAULT_NOTIFICATION_PREFERENCES."""
+
+    sms = "sms"
+    email = "email"
+    letter = "letter"
+    sms_then_email = "sms_then_email"
+    email_then_sms = "email_then_sms"
+
+
 class ConnectionConfig(lib.Enum):
     """PostNord connection configuration options."""
 
@@ -79,7 +89,9 @@ class ConnectionConfig(lib.Enum):
     # Consignee notification booked when a service that requires one (see
     # NOTIFICATION_REQUIRED_SERVICES) is requested with none; a key of
     # DEFAULT_NOTIFICATION_PREFERENCES. Unset rejects such a request.
-    default_notification = lib.OptionEnum("default_notification", str)
+    default_notification = lib.OptionEnum(
+        "default_notification", NotificationPreference
+    )
 
 
 class CountryLocale:
@@ -233,11 +245,11 @@ NORDIC_COUNTRIES = frozenset({"SE", "DK", "NO", "FI"})
 # default_notification values: the channels tried in order, each booked only
 # when the consignee carries its contact (NOTIFICATION_CONTACTS).
 DEFAULT_NOTIFICATION_PREFERENCES: typing.Dict[str, typing.Tuple[str, ...]] = {
-    "sms": ("A3",),
-    "email": ("A4",),
-    "letter": ("A2",),
-    "sms_then_email": ("A3", "A4"),
-    "email_then_sms": ("A4", "A3"),
+    NotificationPreference.sms: ("A3",),
+    NotificationPreference.email: ("A4",),
+    NotificationPreference.letter: ("A2",),
+    NotificationPreference.sms_then_email: ("A3", "A4"),
+    NotificationPreference.email_then_sms: ("A4", "A3"),
 }
 NOTIFICATION_CONTACTS: typing.Dict[str, str] = {"A3": "phone_number", "A4": "email"}
 NOTIFICATION_DEFAULTED = "postnord_notification_defaulted"
