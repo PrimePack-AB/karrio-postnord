@@ -87,6 +87,15 @@ def parse_shipment_response(
             _customs_omitted_message(_response.ctx["customs_omitted"], settings)
         )
 
+    if shipment and _response.ctx.get("notification_defaulted"):
+        messages.append(
+            _notification_defaulted_message(
+                _response.ctx["notification_defaulted"],
+                _response.ctx.get("basic_service_code"),
+                settings,
+            )
+        )
+
     messages += _customs_composition_messages(shipment, _response.ctx, settings)
 
     return shipment, messages
@@ -287,6 +296,25 @@ def _customs_omitted_message(
             "Customs data was not sent: the shipment from "
             f"{countries['shipper_country_code']} to "
             f"{countries['recipient_country_code']} stays within the EU VAT area"
+        ),
+    )
+
+
+def _notification_defaulted_message(
+    code: str,
+    service: typing.Optional[str],
+    settings: provider_utils.Settings,
+) -> models.Message:
+    service_name = provider_units.ShippingService.map(service).name or service
+    return models.Message(
+        carrier_name=settings.carrier_name,
+        carrier_id=settings.carrier_id,
+        code=provider_units.NOTIFICATION_DEFAULTED,
+        level="warning",
+        message=(
+            f"No consignee notification was requested for {service_name}; "
+            f"booked options.{provider_units.option_name(code)} ({code}) "
+            "from the connection's default_notification"
         ),
     )
 
@@ -918,6 +946,12 @@ def shipment_request(
     if service_point and "A7" not in additional_service_codes:
         additional_service_codes.append("A7")
 
+    notification_defaulted, notification_error = _required_notification(
+        service, recipient, options, additional_service_codes, settings
+    )
+    if notification_defaulted:
+        additional_service_codes.append(notification_defaulted)
+
     # Booking locale: request options.language > connection config language >
     # recipient country (when config locale_by_recipient is enabled) > "en".
     # Sent lowercase as the query `locale` (SMS/Email language) and uppercased
@@ -1159,6 +1193,8 @@ def shipment_request(
             label_type=label_type,
             locale=locale,
             entry_code_error=entry_code_error,
+            notification_error=notification_error,
+            notification_defaulted=notification_defaulted,
             # The proxy gates the implicit by-id customs document fetch on the
             # resolved service code and on the declaration having been embedded.
             basic_service_code=service,
@@ -1178,6 +1214,57 @@ def shipment_request(
             ),
         ),
     )
+
+
+def _required_notification(
+    service: str,
+    recipient,
+    options,
+    additional_service_codes: typing.List[str],
+    settings: provider_utils.Settings,
+) -> typing.Tuple[typing.Optional[str], typing.Optional[str]]:
+    """Resolve a service's mandatory consignee notification.
+
+    Returns ``(defaulted_code, error)``: the code the connection's
+    ``default_notification`` books when the request names no required
+    channel, or the rejection message when no default channel is usable.
+    A default channel needs the consignee contact it notifies on and is
+    never booked against an explicit opt-out.
+    """
+    required = provider_units.required_notification_codes(
+        service, recipient.country_code
+    )
+    if not required or any(code in additional_service_codes for code in required):
+        return None, None
+
+    declined = {option.code for _, option in options.items() if not option.state}
+    preference = provider_units.DEFAULT_NOTIFICATION_PREFERENCES.get(
+        settings.connection_config.default_notification.state or "", ()
+    )
+    defaulted = next(
+        (
+            code
+            for code in preference
+            if code in required
+            and code not in declined
+            and (
+                code not in provider_units.NOTIFICATION_CONTACTS
+                or getattr(recipient, provider_units.NOTIFICATION_CONTACTS[code])
+            )
+        ),
+        None,
+    )
+    service_name = provider_units.ShippingService.map(service).name or service
+    choices = ", ".join(
+        f"options.{provider_units.option_name(code)}" for code in required
+    ).rsplit(", ", 1)
+    error = lib.identity(
+        None
+        if defaulted
+        else f"{service_name} requires a consignee notification: set "
+        f"{' or '.join(choices)}, or the connection's default_notification"
+    )
+    return defaulted, error
 
 
 def _service_point_details(options) -> typing.Optional[dict]:

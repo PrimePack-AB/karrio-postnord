@@ -191,17 +191,9 @@ def _rejected_options(fault: dict) -> typing.Dict[str, typing.List[str]]:
     return {
         code: names
         for code in dict.fromkeys(tokens if is_addon_fault else [])
-        for names in [_option_names(code)]
+        for names in [provider_units.option_names(code)]
         if names
     }
-
-
-def _option_names(code: str) -> typing.List[str]:
-    return [
-        name
-        for name, member in provider_units.ShippingOption.__members__.items()
-        if getattr(member.value, "code", None) == code
-    ]
 
 
 def _addon_hinted(

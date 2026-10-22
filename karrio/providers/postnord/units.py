@@ -76,6 +76,11 @@ class ConnectionConfig(lib.Enum):
         "postnord_standalone_customs_documents", bool, False
     )
 
+    # Consignee notification booked when a service that requires one (see
+    # NOTIFICATION_REQUIRED_SERVICES) is requested with none; a key of
+    # DEFAULT_NOTIFICATION_PREFERENCES. Unset rejects such a request.
+    default_notification = lib.OptionEnum("default_notification", str)
+
 
 class CountryLocale:
     """Map recipient country codes to PostNord's Nordic locales.
@@ -215,6 +220,53 @@ class ShippingOption(lib.Enum):
     insurance = postnord_insurance
     sms_notification = postnord_notify_by_sms
     email_notification = postnord_notify_by_email
+
+
+# PostNord General Descriptions, MyPack Collect (19): one of Notification by
+# Letter (A2), SMS (A3) or E-mail (A4) must be booked; A2 is not available to
+# countries outside the Nordics.
+NOTIFICATION_REQUIRED_SERVICES: typing.Dict[str, typing.Tuple[str, ...]] = {
+    "19": ("A2", "A3", "A4"),
+}
+NORDIC_COUNTRIES = frozenset({"SE", "DK", "NO", "FI"})
+
+# default_notification values: the channels tried in order, each booked only
+# when the consignee carries its contact (NOTIFICATION_CONTACTS).
+DEFAULT_NOTIFICATION_PREFERENCES: typing.Dict[str, typing.Tuple[str, ...]] = {
+    "sms": ("A3",),
+    "email": ("A4",),
+    "letter": ("A2",),
+    "sms_then_email": ("A3", "A4"),
+    "email_then_sms": ("A4", "A3"),
+}
+NOTIFICATION_CONTACTS: typing.Dict[str, str] = {"A3": "phone_number", "A4": "email"}
+NOTIFICATION_DEFAULTED = "postnord_notification_defaulted"
+
+
+def required_notification_codes(
+    service: typing.Optional[str], recipient_country_code: typing.Optional[str]
+) -> typing.Tuple[str, ...]:
+    """Return the notification codes one of which the service must book, or ()."""
+    return tuple(
+        code
+        for code in NOTIFICATION_REQUIRED_SERVICES.get(service or "", ())
+        if code != "A2" or recipient_country_code in NORDIC_COUNTRIES
+    )
+
+
+def option_names(code: str) -> typing.List[str]:
+    """Return the ShippingOption names, aliases included, that book ``code``."""
+    return [
+        name
+        for name, member in ShippingOption.__members__.items()
+        if getattr(member.value, "code", None) == code
+    ]
+
+
+def option_name(code: str) -> str:
+    """Return the unified option name booking ``code``, else its PostNord name."""
+    names = option_names(code)
+    return next((name for name in names if not name.startswith("postnord_")), names[0])
 
 
 # Option names whose truthy members are party data for the chosen service

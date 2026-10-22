@@ -77,6 +77,7 @@ Connection config options (under the connection's config):
 | `offer_tracked_letter` | `false` | Offer Tracked Letter (34) in rates. |
 | `offer_export_letter` | `false` | Offer Export Letter (UX) in rates; requires issuer `Z12`. |
 | `postnord_standalone_customs_documents` | `false` | Connection default for the shipment option of the same name: attach the standalone customs declaration of letter (CN22) and International Parcel (91, CN23) bookings with customs data (see [Customs declarations](#customs-declarations)). |
+| `default_notification` | — (unset) | Consignee notification booked when a MyPack Collect (19) shipment requests none: `sms`, `email`, `letter`, `sms_then_email`, or `email_then_sms`. Channels are tried in order; SMS needs a recipient phone number, e-mail a recipient e-mail address, letter a Nordic destination, and a channel the shipment explicitly sets `false` is skipped. The booking carries a `postnord_notification_defaulted` warning naming the booked option. Unset, or no usable channel, rejects the shipment before booking (`NOTIFICATION_REQUIRED`). |
 
 Tracked Letter (34) and Export Letter (UX) are rateable catalog services but are withheld from rate results until their `offer_*` toggle is enabled, so the default rate catalog is unchanged until a merchant opts in; Export Letter additionally requires the Sweden issuer (`Z12`). The other letter and registered-mail products (04, 86, LX, RR, RK, RL, RE, RQ) are offered ungated, with PostNord's booking API as their gate.
 
@@ -94,11 +95,12 @@ Tracked Letter (34) and Export Letter (UX) are rateable catalog services but are
 | `postnord_driver_notification` | bool | — | Opt in to driver notification (`B8`, consignee `phoneNo`). |
 | `postnord_service_point_id`, `postnord_service_point_name` / `_street` / `_city` / `_postal_code` / `_country_code` | string | — | Book to a chosen service point (e.g. a Service Points v5 lookup result): the six values together send the point as the EDI `deliveryParty` and append `A7` (see [Service points](#service-points)). An id without complete details rejects the booking with a field error naming the missing options. Never sent as additional services. |
 
-PostNord has no notification-suppress flag: the consignee is notified only when a notification additional service is booked, and channels combine freely — setting only `sms_notification` books SMS and nothing else. `false` or omitted books nothing, a chosen service point included. Per-service rules apply (documented, not enforced here); PostNord validates them at booking, not the connector:
+PostNord has no notification-suppress flag: the consignee is notified only when a notification additional service is booked, and channels combine freely — setting only `sms_notification` books SMS and nothing else. `false` or omitted books nothing, a chosen service point included. Per-service rules apply (PostNord General Descriptions); the connector enforces the MyPack Collect (19) notification rule before booking and leaves the others to PostNord's booking validation:
 
 | Service | PostNord rule |
 | --------- | --------------- |
-| Parcel (18) | One of A2/A3/A4 must be booked. |
+| Parcel (18) | Consignee contact name and phone number are mandatory. |
+| MyPack Collect (19) | One of A2/A3/A4 must be booked (A2 only to Nordic destinations), else the shipment is rejected before booking unless `default_notification` supplies a channel. |
 | MyPack Home (17) | Consignee SMS or e-mail contact data is mandatory, and additional service C7 (`postnord_flexchange`) is mandatory unless A6 or F1 is booked; the connector has no option for A6 or F1. |
 | Return Pickup (20) | SMS is mandatory on both the consignor and the consignee party. |
 | Return (24) | E-mail and SMS are mandatory on the return part. |

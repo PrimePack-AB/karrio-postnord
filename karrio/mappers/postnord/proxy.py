@@ -118,23 +118,22 @@ class Proxy(proxy.Proxy):
             else "/rest/shipment/v3/edi/labels/pdf"
         )
 
-        # A build-time rejection (entry_code over length) must not reach
-        # PostNord: request building runs outside the SDK's fail_safe, so the
-        # provider flags the violation in ctx and this synthesized fault flows
-        # through the regular error parser into a Message instead of an
-        # unstructured exception.
-        if request.ctx.get("entry_code_error"):
+        # A build-time rejection (entry_code over length, a missing mandatory
+        # notification) must not reach PostNord: request building runs outside
+        # the SDK's fail_safe, so the provider flags the violation in ctx and
+        # this synthesized fault flows through the regular error parser into a
+        # Message instead of an unstructured exception.
+        build_faults = [
+            dict(faultCode=fault_code, explanationText=request.ctx[key])
+            for key, fault_code in (
+                ("entry_code_error", "ENTRY_CODE_LENGTH"),
+                ("notification_error", "NOTIFICATION_REQUIRED"),
+            )
+            if request.ctx.get(key)
+        ]
+        if build_faults:
             return lib.Deserializable(
-                dict(
-                    compositeFault=dict(
-                        faults=[
-                            dict(
-                                faultCode="ENTRY_CODE_LENGTH",
-                                explanationText=request.ctx["entry_code_error"],
-                            )
-                        ]
-                    )
-                ),
+                dict(compositeFault=dict(faults=build_faults)),
                 lib.to_dict,
                 request.ctx,
             )
