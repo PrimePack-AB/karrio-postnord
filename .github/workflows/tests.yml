@@ -29,7 +29,7 @@ jobs:
           python-version: "3.12"
       - name: Install the fork SDK and the connector
         run: pip install -e karrio-sdk/modules/sdk -e .
-      - name: Check the SDK provides the document-stamping surface
+      - name: Check the SDK provides the fork surface (document stamping, typed list configs)
         run: python scripts/check-sdk-surface.py
       - name: Run the connector test suite
         run: python -m unittest discover -f -s tests
