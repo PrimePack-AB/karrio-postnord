@@ -1,7 +1,8 @@
 """Exit non-zero unless the installed karrio SDK provides the fork surface this connector needs.
 
-Two capabilities are checked: document stamping (by name) and typed enum-list
-connection configs (by behaviour).
+Three capabilities are checked: document stamping (by name), the cn23
+declaration kind the label_cn23 seeds stamp under (by value), and typed
+enum-list connection configs (by behaviour).
 """
 
 import sys
@@ -27,6 +28,21 @@ missing = [
         "classify_customs_composition",
     )
     if not hasattr(lib, name)
+]
+
+missing += [
+    failure
+    for failure, failed in [
+        (
+            "karrio.lib.DECLARATION_KINDS including 'cn23'",
+            "cn23" not in getattr(lib, "DECLARATION_KINDS", ()),
+        ),
+        (
+            "karrio.lib.COMBINED_DOC_TYPES mapping 'cn23' to 'label_cn23'",
+            getattr(lib, "COMBINED_DOC_TYPES", {}).get("cn23") != "label_cn23",
+        ),
+    ]
+    if failed
 ]
 
 
