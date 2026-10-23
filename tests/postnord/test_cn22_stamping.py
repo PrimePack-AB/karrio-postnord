@@ -26,6 +26,9 @@ KEYWORD = "Date and Sender's signature"
 STRIP_ANCHOR_MM = (53.34, 91.44)
 STRIP_EXTENT_MM = (49.11, 7.62)
 
+# The alpha bounding box of ``_signature_png_b64``: 361 x 81 px of ink.
+SIGNATURE_INK_BBOX = (20, 30, 381, 111)
+
 # The fixture page's A4 height (mediabox 841.8898 pt).
 PAGE_HEIGHT_MM = 297.0
 
@@ -175,8 +178,20 @@ class TestCn22PdfStamp(unittest.TestCase):
         self.assertGreater(date_cm[5], signature_cm[5])
         self.assertAlmostEqual(date_cm[4], anchor_x, places=1)
         self.assertAlmostEqual(date_cm[5], anchor_y, places=1)
-        self.assertAlmostEqual(signature_cm[4], anchor_x, places=1)
+        # The signature keeps its aspect: its trimmed 361 x 81 px ink fills the
+        # 24.555 mm signature share along the text and is centred across it,
+        # 5.510 mm deep in the 7.62 mm strip, so its origin moves
+        # (7.62 - 5.510) / 2 = 1.055 mm (2.991 pt) across the page from the
+        # anchor, while it still starts where the date half ends.
+        self.assertEqual(
+            PIL.Image.open(io.BytesIO(base64.b64decode(_signature_png_b64())))
+            .getchannel("A")
+            .getbbox(),
+            SIGNATURE_INK_BBOX,
+        )
+        self.assertAlmostEqual(signature_cm[4], anchor_x + 2.991, places=2)
         self.assertAlmostEqual(signature_cm[5], anchor_y - date_width_pt, places=1)
+        self.assertAlmostEqual(-signature_cm[1], signature_cm[2], places=6)
         # A clockwise quarter turn: zero diagonal with b < 0 < c.
         for cm in band:
             self.assertAlmostEqual(cm[0], 0.0, places=6)
