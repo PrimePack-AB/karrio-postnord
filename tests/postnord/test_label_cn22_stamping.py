@@ -178,6 +178,7 @@ class TestPostnordDocumentSections(unittest.TestCase):
             {
                 "ZPL": {
                     "cn22": lib.AnyOf(ZPL_CN22_MARKER, "^FX CUSTOMS_CN22_V2^FS"),
+                    "cn23": "^FX CN23_CUSTOMS_DECLARATION^FS",
                     "label": lib.AnyOf(
                         ZPL_LABEL_MARKER, "^FX NORDIC_SHIPPING_LABEL^FS"
                     ),

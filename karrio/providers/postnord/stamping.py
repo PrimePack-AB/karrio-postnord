@@ -62,30 +62,48 @@ LABEL_CN22_SEED = lib.StampSeed(
     ),
 )
 
-# The CN23 signature strip, measured on the only CN23 capture in this
-# project or the fork: the test-mode 2026-10-19 booking whose two-page A4
-# PDF composes the International Parcel label on page 1 and the upright
-# CN23 on page 2 (the local fixture sandbox/
+# The CN23 signature strip on PDF, measured on the test-mode 2026-10-19
+# booking whose two-page A4 PDF composes the International Parcel label on
+# page 1 and the upright CN23 on page 2 (the local fixture sandbox/
 # p1-cn23-gateway.printout01.pdf, sha256 0b5e7ae9ad4ad90c52554c824ca5a6bb
-# 14bc78d64ac31314e4a586b625e65e66, printoutComposition {cn23: 1,
-# label: 1}). The certification cell prints its caption as two stacked
-# text runs ("Date," above "Sender's signature"), and the SDK locates a
-# keyword within a single run, so the keyword is the "Sender's signature"
-# run at page (85.418, 236.211) mm. In that run's reading frame the strip
-# starts 24.48 mm along the text and 4.01 mm before its baseline (the
-# caption's top edge) and extends 38.1 x 9.8 mm: on the page that is x
-# 109.9-148.0 and y 232.2-242.0, right of the caption ink (which ends at
-# x 108.63), clear of the faint "/" glyph printed at x 149.9, 7.6 mm short
-# of the cell's right rule (x 155.62) and 1.42 mm above its bottom rule
-# (y 243.42). ``placement`` keeps the capture's absolute page-2
-# coordinates. Revision 1 is the first measurement; a PostNord form change
-# supersedes it with a higher revision.
+# 14bc78d64ac31314e4a586b625e65e66, printoutComposition {cn23: 1, label:
+# 1}). The certification cell prints its caption as two stacked text runs
+# ("Date," above "Sender's signature"), and the SDK locates a keyword within
+# a single run, so the keyword is the "Sender's signature" run at page
+# (85.418, 236.211) mm. In that run's reading frame the strip starts
+# 24.48 mm along the text and 4.01 mm before its baseline (the caption's top
+# edge) and extends 38.1 x 9.8 mm: on the page that is x 109.9-148.0 and
+# y 232.2-242.0, right of the caption ink (which ends at x 108.63), clear of
+# the faint "/" glyph printed at x 149.9, 7.6 mm short of the cell's right
+# rule (x 155.62) and 1.42 mm above its bottom rule (y 243.42).
+# ``placement`` keeps the capture's absolute page-2 coordinates.
+#
+# The ZPL CN23 is the second ^XA...^XZ format of the label printout (the
+# local fixture postnord_label_cn23_international_parcel.zpl, sha256
+# 8478d813e128be79f3e67d1abc38df21b68877cca987111431ada75116e0a785). Its
+# caption field "Sender's signature" is upright at ^FO263,1445 in a 20-dot
+# font, right of which a 385 x 30-dot signature box is drawn at ^FO448,1440;
+# the certification text above ends by y 1415 and the format's ^LL is 1520.
+# The strip is 376 x 64 dots at ^FO452,1423, measured from the caption
+# field's origin: 189 dots along the text and 22 dots above it. It spans the
+# box horizontally 4 dots inside its side rules (the 376-dot width packs into
+# whole raster bytes, so no padding reaches past the box), and is centred on
+# the box's middle (y 1455) between the certification text and the label's
+# end. The box is too shallow for a legible stamp: a date stamped inside its
+# 28-dot interior renders about 7 dots tall. Centred on it, a date in the
+# strip's left half stays inside the box, and a width-filling signature in
+# the right half is about 42 dots tall and crosses the box rules by about
+# 6 dots above and below. The millimetre values convert back to those dots
+# at 203 dpi. Revision 2 adds the ZPL geometry to the PDF-only revision 1.
 LABEL_CN23_SEED = lib.StampSeed(
     placement=lib.StampPlacement(
         x=109.9, y=232.2, width=38.1, height=9.8, page=2
     ),
-    revision=1,
+    revision=2,
     keyword="Sender's signature",
+    zpl_keyword_frame_placement=lib.StampPlacement(
+        x=23.648, y=-2.753, width=47.046, height=8.008, rotation=0, dpi=203
+    ),
     pdf_keyword_placement=lib.StampPlacement(
         x=24.48, y=-4.01, width=38.1, height=9.8, rotation=0
     ),
@@ -99,10 +117,8 @@ STAMP_SEEDS = {
     "cn22/ZPL/*": CN22_SEED,
     "label_cn22/PDF/A4": LABEL_CN22_SEED,
     "label_cn22/ZPL/*": LABEL_CN22_SEED,
-    # PDF-only by evidence: the sole CN23 capture is this PDF printout, and
-    # no ZPL CN23 exists to measure a ZPL keyword geometry against, so a
-    # label_cn23 ZPL key would anchor stamps on unmeasured geometry.
     "label_cn23/PDF/A4": LABEL_CN23_SEED,
+    "label_cn23/ZPL/*": LABEL_CN23_SEED,
 }
 
 # PostNord composes the CN22 and the label into one printout. The export
@@ -113,14 +129,18 @@ STAMP_SEEDS = {
 # apart by PostNord's own ^FX field comments in ZPL and by page text in PDF;
 # each template's label markers occur in no CN22 section of any capture. The
 # CN23 composes into the PDF the same way since the 2026-10-19 test-mode
-# booking (page 2 of the capture above); a ZPL CN23 section has no capture,
-# so the cn23 markers are PDF-only and a ZPL cn23 kind never matches.
+# booking (page 2 of the capture above). In ZPL the International Parcel
+# label format is followed by a CN23 format, which PostNord opens with the
+# ^FX CN23_CUSTOMS_DECLARATION^FS comment between the two formats and closes
+# with ^FX CN23_CUSTOMS_DECLARATION_END^FS after the last ^XZ; the opening
+# comment is the cn23 marker and occurs in no CN22 capture.
 DOCUMENT_SECTIONS = {
     "ZPL": {
         "cn22": lib.AnyOf(
             "^FX CUSTOMS_CN22_ROTATED^FS",
             "^FX CUSTOMS_CN22_V2^FS",
         ),
+        "cn23": "^FX CN23_CUSTOMS_DECLARATION^FS",
         "label": lib.AnyOf(
             "^FX SE_INTERNATIONAL_LETTER_LABEL^FS",
             "^FX NORDIC_SHIPPING_LABEL^FS",

@@ -28,6 +28,8 @@ FILES = (
     "postnord_label_cn22_international_parcel.zpl",
     "postnord_label_cn22_printid.pdf",
     "postnord_label_cn22_printid.zpl",
+    "postnord_label_cn23_international_parcel.pdf",
+    "postnord_label_cn23_international_parcel.zpl",
     "sandbox/p1-cn23-gateway.printout01.pdf",
     "sandbox/p5-no-customs-with-application-raw.printout01.pdf",
 )

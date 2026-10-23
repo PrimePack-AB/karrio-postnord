@@ -1784,7 +1784,7 @@ class TestPostNordLabelComposition(unittest.TestCase):
         # The test-mode capture's layout composes the label and the CN23:
         # the PDF verifies its content against the CN23 page-text markers,
         # and both formats attest the declared composition in silence. The
-        # ZPL content check skips the format (no ZPL CN23 capture exists).
+        # ZPL content check skips the format.
         cases = [
             ("pdf", CN23BookingResponse, "PDF", CN23LabelPDF),
             (
@@ -1807,7 +1807,7 @@ class TestPostNordLabelComposition(unittest.TestCase):
 
     def test_international_parcel_zpl_content_check_skips_without_evidence(self):
         # A CN23 ZPL booking with no declared composition reports nothing:
-        # the content check deliberately skips the uncaptured format and the
+        # the content check skips the format and the
         # attestation stays silent when PostNord declares no composition.
         details, messages = self._book(
             CN23BookingNoCompositionZPLResponse,
@@ -4652,8 +4652,8 @@ CombinedBookingNoPrintIdResponse = CustomsBookingNoPrintIdResponse.replace(
 # The CN23-composition layout of the 2026-10-19 sandbox capture (P1): a 91
 # SE→AL booking whose two-page A4 PDF composes the parcel label and the
 # CN23, printoutComposition {cn23: 1, label: 1}, replayed as a booking
-# response. No ZPL CN23 printout exists, so the ZPL sibling declares the
-# same attested composition around a plain parcel label: it covers the
+# response. The ZPL sibling declares the same attested composition around a
+# plain parcel label, which the ZPL content check never reads: it covers the
 # attestation and the by-id fetch while the content check skips the format.
 CN23LabelPDF = synthetic_printouts.INTERNATIONAL_PARCEL_CN23_PDF
 CN23BookingResponse = _customs_booking_pdf(CN23LabelPDF).replace(

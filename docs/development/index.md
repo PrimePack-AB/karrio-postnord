@@ -43,7 +43,7 @@ CI (`.github/workflows/tests.yml`) runs the same suite against the fork's `devel
 
 The label and customs printouts PostNord returned to bookings and by-id fetches are content returned from the Services, which PostNord's [General Terms and Conditions for digital integration services](https://developer.postnord.com/pdf/General_Terms_and_Conditions_for_digital_integration_services_from20250613.pdf) (clause 6) do not permit distributing, so the repository does not track them; they were removed from its history on 2026-10-20.
 The measurement, stamping-seed, and sandbox-evidence tests read them from a local directory, `$POSTNORD_FIXTURES_DIR` if set and otherwise `${XDG_STATE_HOME:-~/.local/state}/karrio-postnord/fixtures/`, laid out as below (`tests/postnord/local_fixtures.py`).
-Those tests skip when any of the ten files is absent, which is the case in CI.
+Those tests skip when any of the twelve files is absent, which is the case in CI.
 The booking-path tests in `tests/postnord/test_shipment.py` run everywhere: they use synthetic printouts built at test time (`tests/postnord/synthetic_printouts.py`) that carry only the section markers the connector declares in `DOCUMENT_SECTIONS`.
 
 | Local path | Origin | SHA-256 |
@@ -56,9 +56,12 @@ The booking-path tests in `tests/postnord/test_shipment.py` run everywhere: they
 | `postnord_label_cn22_booking_two_pages.pdf` | sandbox export letter (UX) PDF booking, 2026-09-28 | `f10f333bcd821648abbcb29ea12d7eb6c7903df2150863334eccccc15f42df0d` |
 | `postnord_label_cn22_international_parcel.zpl` | live International Parcel (91) booking, 2026-09-28, ZPL | `90f689ee030c6efb11dd9b33d580d3ff603fc0175f1bbb24a20025f108bd35d6` |
 | `postnord_label_cn22_international_parcel.pdf` | International Parcel (91) capture, 2026-09-28, PDF (source call not recorded) | `fb6762cd25807625595413ab3fe4d205b90409b39a25126225590c3acc38f844` |
+| `postnord_label_cn23_international_parcel.zpl` | International Parcel (91) label format followed by a CN23 format, from the DHL API farm, added 2026-10-23 | `8478d813e128be79f3e67d1abc38df21b68877cca987111431ada75116e0a785` |
+| `postnord_label_cn23_international_parcel.pdf` | the same International Parcel (91) label and CN23 as a two-page A4 PDF, from the DHL API farm, added 2026-10-23 | `e03f4eec1b9cc3dfe38014706e0276384a6d23da81c61c50d48d49b46757e673` |
 | `sandbox/p1-cn23-gateway.printout01.pdf` | test-mode probe P1, 2026-10-19 | `0b5e7ae9ad4ad90c52554c824ca5a6bb14bc78d64ac31314e4a586b625e65e66` |
 | `sandbox/p5-no-customs-with-application-raw.printout01.pdf` | test-mode probe P5, 2026-10-19 | `04ecd390123e80b5cda907a91317bc708f74a489fd28d2223074196d3fedc6dd` |
 
+The two `postnord_label_cn23_international_parcel` printouts carry no personal data, but their redistribution is not permitted either, so they are referenced only by name and digest.
 The captures behind the first eight are described in [booking-printout-composition-verification.md](../notes/sandbox/booking-printout-composition-verification.md); copies are held by the maintainers, and a new capture needs a PostNord booking.
 The two `sandbox/` printouts are rebuilt from the probe captures under `karrio-postnord/sandbox/` below the state root by `.venv/bin/python -m sandbox_tests.postnord.evidence`, which writes the printouts to the local directory and the responses and `manifest.json` to `tests/postnord/fixtures/sandbox/`.
 Check a copy with `sha256sum` against the table, or run the suite and confirm that nothing is skipped.

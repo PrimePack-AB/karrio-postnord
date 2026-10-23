@@ -30,7 +30,7 @@ CN23-structured bookings are verified the same way on PDF labels, against
 the CN23 page-text markers seeded from the committed test-mode capture
 (the SDK classifier's composition vocabulary is closed to the CN22, so
 that check reads the classifier's matched kinds connector-side); a ZPL
-label skips it, no ZPL CN23 having been captured. Customs-invoice labels
+label skips it. Customs-invoice labels
 carry no declared markers and are never content-verified. Every customs
 branch instead attests the booking response's declared
 ``printoutComposition`` against the kinds the branch composes, warning
@@ -142,8 +142,8 @@ def _label_composition_message(
     connector-side (the SDK classifier's composition vocabulary is closed
     to the CN22: its declaration kind and doc types are cn22 constants, so
     a CN23 printout always classifies as carrying no declaration) and a
-    ZPL label deliberately skips it — no ZPL CN23 printout has been
-    captured to seed markers from. The customs invoice declares no section
+    ZPL label skips it; the skip predates the ZPL cn23 section marker,
+    which was measured on a later ZPL capture. The customs invoice declares no section
     markers in any format, so its label is never content-verified.
     """
     if structure == provider_units.CustomsStructure.cn22:
