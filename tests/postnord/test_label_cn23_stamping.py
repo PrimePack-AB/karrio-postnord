@@ -15,11 +15,12 @@ import base64
 import unittest
 
 import karrio.lib as lib
+import karrio.core.models as models
 import karrio.references as references
 import karrio.core.utils.stamping as stamping
 import karrio.providers.postnord.stamping as postnord_stamping
 
-from postnord import local_fixtures
+from postnord import local_fixtures, synthetic_printouts
 from postnord.test_label_cn22_stamping import (
     PDF_FIXTURES,
     _document,
@@ -313,6 +314,133 @@ class TestCn23Captures(unittest.TestCase):
         self.assertLessEqual(
             abs(min(signature_rows) + max(signature_rows) - (box_top + box_bottom)), 2
         )
+
+
+# The PDF seed's strip on the synthetic CN23 page, whose keyword run starts
+# at page (60, 200) mm: x 60 + 24.48 to + 38.1 mm, y 200 - 4.01 to + 9.8 mm.
+SYNTHETIC_STRIP_MM = ((84.48, 122.58), (195.99, 205.79))
+
+
+def _synthetic(base64_data: str, document_format: str):
+    return models.ShippingDocument(
+        category="label", format=document_format, base64=base64_data
+    )
+
+
+class TestSyntheticCn23Stamp(unittest.TestCase):
+    def test_synthetic_pdf_classifies_as_a_label_with_a_cn23(self):
+        self.assertEqual(
+            lib.classify_customs_composition(
+                _synthetic(
+                    synthetic_printouts.INTERNATIONAL_PARCEL_CN23_SIGNABLE_PDF, "PDF"
+                ),
+                carrier="postnord",
+            ),
+            lib.CustomsClassification(
+                composition=lib.CustomsComposition.label_with_declaration,
+                kinds=("cn23", "label"),
+                doc_type="label_cn23",
+                page=2,
+            ),
+        )
+
+    def test_pdf_seed_stamps_the_synthetic_cn23_by_keyword(self):
+        document = _synthetic(
+            synthetic_printouts.INTERNATIONAL_PARCEL_CN23_SIGNABLE_PDF, "PDF"
+        )
+
+        stamped = lib.stamp_document(
+            document,
+            image=_signature_png_b64(),
+            date="2026-10-23",
+            carrier="postnord",
+            doc_type="label_cn23",
+        )
+        overlays = _overlays(stamped.base64, 2)
+        (x_lo, x_hi), (y_lo, y_hi) = SYNTHETIC_STRIP_MM
+        region = (_pt(x_lo), _pt(x_hi), PAGE_HEIGHT_PT - _pt(y_hi), PAGE_HEIGHT_PT - _pt(y_lo))
+
+        self.assertEqual(_overlays(stamped.base64, 1), [])
+        self.assertEqual(len(overlays), 2)
+        for matrix, bounds in overlays:
+            self.assertTrue(_reads_left_to_right(matrix))
+            _within(self, bounds, region)
+        date_bounds, signature_bounds = sorted(bounds for _, bounds in overlays)
+        self.assertAlmostEqual(date_bounds[0], _pt(x_lo), places=2)
+        self.assertAlmostEqual(date_bounds[1], _pt((x_lo + x_hi) / 2), places=2)
+        self.assertAlmostEqual(signature_bounds[1], _pt(x_hi), places=2)
+        self.assertEqual(_page_text(stamped.base64, 2), _page_text(document.base64, 2))
+
+    def test_synthetic_zpl_classifies_as_a_label_with_a_cn23(self):
+        self.assertEqual(
+            lib.classify_customs_composition(
+                _synthetic(
+                    base64.b64encode(
+                        synthetic_printouts.INTERNATIONAL_PARCEL_CN23_ZPL.encode()
+                    ).decode(),
+                    "ZPL",
+                ),
+                carrier="postnord",
+            ),
+            lib.CustomsClassification(
+                composition=lib.CustomsComposition.label_with_declaration,
+                kinds=("cn23", "label"),
+                doc_type="label_cn23",
+                page=None,
+            ),
+        )
+
+    def test_zpl_seed_stamps_the_synthetic_cn23_format(self):
+        original = synthetic_printouts.INTERNATIONAL_PARCEL_CN23_ZPL
+
+        stamped = _zpl_text(
+            lib.stamp_document(
+                _synthetic(base64.b64encode(original.encode()).decode(), "ZPL"),
+                image=_signature_png_b64(),
+                date="2026-10-23",
+                carrier="postnord",
+                doc_type="label_cn23",
+            )
+        )
+        fields = _stamp_fields(stamped)
+        spliced = re.search(r"\^FO\d+,\d+\^GFA,[^\^]*\^FS", stamped)
+
+        self.assertEqual(len(fields), 1)
+        x, y, total, bpr, _ = fields[0]
+        self.assertEqual((x, y, bpr * 8, total // bpr), ZPL_STAMP)
+        self.assertEqual(stamped[: spliced.start()] + stamped[spliced.end():], original)
+        self.assertEqual(stamped[: spliced.start()].count("^XZ"), 1)
+        self.assertTrue(stamped[spliced.end():].startswith("^XZ"))
+        self.assertTrue(stamped.rstrip().endswith(ZPL_CN23_END_MARKER))
+
+    def test_zpl_seed_stamps_the_signature_alone_centred_on_the_box(self):
+        stamped = _zpl_text(
+            lib.stamp_document(
+                _synthetic(
+                    base64.b64encode(
+                        synthetic_printouts.INTERNATIONAL_PARCEL_CN23_ZPL.encode()
+                    ).decode(),
+                    "ZPL",
+                ),
+                image=_signature_png_b64(),
+                carrier="postnord",
+                doc_type="label_cn23",
+            )
+        )
+        ink = _ink(_stamp_fields(stamped)[0])
+        columns = [dot_x for dot_x, _ in ink]
+        rows = [dot_y for _, dot_y in ink]
+        (box_left, box_right), (box_top, box_bottom) = ZPL_SIGN_BOX
+
+        # Without a date the signature fits the whole 376 x 64-dot strip:
+        # its 361 x 81 px ink is height-bound, 64 dots tall and
+        # 361 * 64 / 81 = 285 dots long from the strip's left edge.
+        self.assertEqual(min(columns), ZPL_STAMP[0])
+        self.assertAlmostEqual(max(columns) - min(columns) + 1, 285, delta=2)
+        self.assertGreater(max(columns), box_left)
+        self.assertLess(max(columns), box_right)
+        self.assertEqual((min(rows), max(rows)), (ZPL_STAMP[1], ZPL_STAMP[1] + 63))
+        self.assertLessEqual(abs(min(rows) + max(rows) - (box_top + box_bottom)), 1)
 
 
 class TestLabelCn23Stamp(unittest.TestCase):

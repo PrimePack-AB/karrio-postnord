@@ -44,7 +44,7 @@ CI (`.github/workflows/tests.yml`) runs the same suite against the fork's `devel
 The label and customs printouts PostNord returned to bookings and by-id fetches are content returned from the Services, which PostNord's [General Terms and Conditions for digital integration services](https://developer.postnord.com/pdf/General_Terms_and_Conditions_for_digital_integration_services_from20250613.pdf) (clause 6) do not permit distributing, so the repository does not track them; they were removed from its history on 2026-10-20.
 The measurement, stamping-seed, and sandbox-evidence tests read them from a local directory, `$POSTNORD_FIXTURES_DIR` if set and otherwise `${XDG_STATE_HOME:-~/.local/state}/karrio-postnord/fixtures/`, laid out as below (`tests/postnord/local_fixtures.py`).
 Those tests skip when any of the twelve files is absent, which is the case in CI.
-The booking-path tests in `tests/postnord/test_shipment.py` run everywhere: they use synthetic printouts built at test time (`tests/postnord/synthetic_printouts.py`) that carry only the section markers the connector declares in `DOCUMENT_SECTIONS`.
+The booking-path tests in `tests/postnord/test_shipment.py` run everywhere: they use synthetic printouts built at test time (`tests/postnord/synthetic_printouts.py`) that carry only the section markers the connector declares in `DOCUMENT_SECTIONS`, and, in the stamping-capable CN23 printouts the stamping tests use, the signature caption the seeds anchor on.
 
 | Local path | Origin | SHA-256 |
 |------------|--------|---------|
