@@ -105,11 +105,9 @@ class TestP1Cn23Capture(unittest.TestCase):
             self.assertIn(marker, _page_text(document.base64, 2))
 
     @local_fixtures.required
-    def test_p1_fixture_classifies_with_both_kinds_and_no_composition(self):
-        # The kinds carry the cn23 and label sections, while the SDK
-        # classifier itself resolves no composition: its vocabulary is
-        # closed to the CN22, so the booking path reads kinds, not
-        # composition, for the CN23 content check.
+    def test_p1_fixture_classifies_as_a_label_with_a_cn23(self):
+        # The SDK classifier knows cn23 as a declaration kind, so the
+        # capture resolves to the combined label_cn23 type on page 2.
         result = lib.classify_customs_composition(
             _document(P1_FIXTURE, "PDF"), carrier="postnord"
         )
@@ -117,10 +115,10 @@ class TestP1Cn23Capture(unittest.TestCase):
         self.assertEqual(
             result,
             lib.CustomsClassification(
-                composition=lib.CustomsComposition.none,
+                composition=lib.CustomsComposition.label_with_declaration,
                 kinds=("cn23", "label"),
-                doc_type=None,
-                page=None,
+                doc_type="label_cn23",
+                page=2,
             ),
         )
 
