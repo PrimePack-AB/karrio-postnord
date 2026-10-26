@@ -26,13 +26,26 @@ For International Parcel (91), the committed test-mode capture shows the composi
 
 The connector verifies the composed label with the SDK customs classifier using PostNord's declared section markers (`DOCUMENT_SECTIONS` in `karrio/providers/postnord/stamping.py`).
 A label that does not classify as the shipping label composed with the branch's declaration is still returned unchanged, with a `postnord_unexpected_label_composition` warning naming the expected and the classified composition; the booking never fails on it.
-CN22 labels are verified in both formats.
-CN23 labels (International Parcel 91) are verified on PDF against the CN23 page-text markers seeded from that capture, read from the classifier's matched kinds because its composition vocabulary is closed to the CN22; a ZPL label skips the check, which predates the ZPL CN23 section marker. The CN23 signature-strip seed covers both formats; its ZPL geometry and the ZPL marker `^FX CN23_CUSTOMS_DECLARATION^FS` are measured on a locally held ZPL printout listed in [docs/development/index.md](../development/index.md).
+Labels are verified in both formats: a CN22 label (letters) must classify as `label_cn22` and a CN23 label (International Parcel 91) as `label_cn23`.
+The CN23 is recognized on PDF by the page-text markers seeded from that capture and on ZPL by the marker `^FX CN23_CUSTOMS_DECLARATION^FS`, which opens the CN23 format after the label format.
+The CN23 signature-strip seed covers both formats; its ZPL geometry and the ZPL marker are measured on a locally held ZPL printout listed in [docs/development/index.md](../development/index.md).
 Customs-invoice labels declare no section markers in any format and are never content-verified, and bookings without customs data or within the EU VAT area are not verified.
 The classifier anchors accept the template variance PostNord's printouts show — the letter CN22 rotated beside the label versus the parcel services' separate upright CN22 format — and the working capture record is [docs/notes/sandbox/booking-printout-composition-verification.md](../notes/sandbox/booking-printout-composition-verification.md).
 
 Every customs-declared booking additionally attests the server-declared `meta.printout_composition` against the kinds its customs branch composes — `{label, cn22}` for letters, `{label, cn23}` for International Parcel (91), `{label, customsInvoice}` for parcel products.
 A disagreement warns with `postnord_printout_composition_mismatch`, an absent declaration stays silent, and neither ever fails the booking; the pre-CN23 91 captures, which compose a CN22, therefore warn by design when replayed.
+
+## Stamping metadata
+
+Two meta fields describe a booking's label printout for clients that stamp it.
+`meta.printout_composition` is what PostNord declares it composed, the sorted kinds of the booking response's `printoutComposition`, for example `["cn23", "label"]`; it is omitted when PostNord declares no composition.
+`meta.stamp_doc_type` is the registry document type the label stamps under, taken from the SDK customs classifier's reading of the returned label itself; it is omitted when the label carries no declaration or cannot be classified, and on bookings without customs data.
+The rule it follows is the SDK's: `label_<kind>` (`label_cn22`, `label_cn23`) when the label section is present alongside the declaration, the bare declaration kind (`cn22`, `cn23`) for a lone declaration.
+A composed booking label therefore names `label_cn22` or `label_cn23`, both of which have registered seeds in PDF (A4) and ZPL.
+No seed is registered for a lone `cn23`, because no standalone CN23 printout has been captured to measure one on.
+
+A client stamping the label should pass `meta.stamp_doc_type` as the stamping request's `doc_type` rather than deriving it from `meta.printout_composition`.
+Seeds resolve on `postnord/<doc_type>/<FORMAT>/<paper>`, so the bare kind for a composed label resolves the wrong seed (`cn22` for a composed CN22 label) or none (`cn23`).
 
 ## Standalone customs documents
 

@@ -17,7 +17,7 @@ python3.12 -m venv .venv
 ```
 
 `requirements-dev.txt` installs the SDK editable from `../karrio/modules/sdk`.
-That checkout must be the fork on a ref providing the document-stamping SDK surface that CI checks by import, such as `develop` (last verified at a7355a5c8 on 2026-10-19), because upstream karrio cannot import this plugin (see [Plugin layout](architecture/plugin-layout.md)).
+That checkout must be the fork on a ref providing the document-stamping SDK surface that CI checks by import and the `cn23` declaration kind it checks by value (`karrio.lib.DECLARATION_KINDS` including `cn23`, `COMBINED_DOC_TYPES["cn23"] == "label_cn23"`), such as `develop` (the stamping names last verified at a7355a5c8 on 2026-10-19) or the tag snapshot-2026.10.23.2 (the cn23 kind last verified on 2026-10-26), because upstream karrio cannot import this plugin (see [Plugin layout](architecture/plugin-layout.md)).
 A `git+https` install of the SDK cannot replace the checkout: pip recursively fetches the monorepo's private submodules that `modules/sdk` does not need.
 
 ## Tests
