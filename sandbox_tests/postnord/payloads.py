@@ -51,15 +51,24 @@ PARCEL = {
 SHIPPER_VAT_NO = "SE556123471101"
 
 
-def cn23_payload(eori: str, reference: str) -> dict:
+def cn23_payload(
+    eori: str, reference: str, standalone_customs_documents: bool = False
+) -> dict:
     """International Parcel (91) to Albania with the CN23 customs block.
 
     The connector maps this onto the shipment entry's
     ``customsDeclarationCN23`` branch: the customs shape of the CN22 letter
     fixtures, with ``postalCharges`` booked as a zero amount in the
-    totalValue currency.
+    totalValue currency. ``standalone_customs_documents`` sets the
+    connector's opt-in, under which it follows an accepted booking with the
+    by-id ``definePrintout=onlyCustomsDeclarations`` fetch.
     """
     return dict(
+        **(
+            {"options": {"postnord_standalone_customs_documents": True}}
+            if standalone_customs_documents
+            else {}
+        ),
         shipper=SHIPPER,
         recipient=ALBANIA,
         parcels=[PARCEL],

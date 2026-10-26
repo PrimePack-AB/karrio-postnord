@@ -402,24 +402,60 @@ class SegmentCapture:
     parsed: typing.Any
 
 
-def latest_segment_capture(
+def latest_run_captures(
     sandbox_dir: pathlib.Path, segment: str
-) -> typing.Optional[SegmentCapture]:
-    """The newest ``NNN-<segment>.response.parsed.json`` under ``sandbox_dir``.
+) -> typing.List[SegmentCapture]:
+    """Every ``NNN-<segment>.response.parsed.json`` of the newest run holding any.
 
-    Run directories are UTC timestamps, so their names sort chronologically.
+    Run directories are UTC timestamps, so their names sort chronologically;
+    within a run the ``NNN`` stems give call order, so a gateway segment's
+    booking response precedes the follow-up calls the connector made.
     """
     if not sandbox_dir.is_dir():
-        return None
+        return []
     for run_dir in sorted((p for p in sandbox_dir.iterdir() if p.is_dir()), reverse=True):
         captures = sorted(run_dir.glob(f"*-{segment}.response.parsed.json"))
         if captures:
-            path = captures[-1]
-            return SegmentCapture(
-                run_dir=run_dir,
-                path=path,
-                parsed=json.loads(path.read_text()),
-            )
+            return [
+                SegmentCapture(
+                    run_dir=run_dir,
+                    path=path,
+                    parsed=json.loads(path.read_text()),
+                )
+                for path in captures
+            ]
+    return []
+
+
+def latest_segment_capture(
+    sandbox_dir: pathlib.Path, segment: str
+) -> typing.Optional[SegmentCapture]:
+    """The newest ``NNN-<segment>.response.parsed.json`` under ``sandbox_dir``."""
+    captures = latest_run_captures(sandbox_dir, segment)
+    return captures[-1] if captures else None
+
+
+def byid_failure(body: typing.Any) -> typing.Optional[str]:
+    """Why a by-id labels response is not a usable printout, or None when it is.
+
+    Usable means a ``labelPrintout`` list with no ``itemIds`` member in
+    status ``FAIL`` and at least one printout carrying data; PostNord
+    answers an unknown id with HTTP 200 and a per-id FAIL, and an id with
+    nothing to print with an all-zero composition and no data.
+    """
+    if not isinstance(body, list):
+        return "the by-id response is not a labelPrintout list"
+    failures = [
+        str((member.get("errorResponse") or {}).get("message") or "no message")
+        for entry in body
+        if isinstance(entry, dict)
+        for member in (entry.get("itemIds") or [])
+        if isinstance(member, dict) and member.get("status") == "FAIL"
+    ]
+    if failures:
+        return "per-id FAIL: " + "; ".join(failures)
+    if not extract_documents(body):
+        return "no printout data in the by-id response"
     return None
 
 

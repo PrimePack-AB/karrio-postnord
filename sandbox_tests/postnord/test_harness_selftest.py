@@ -485,6 +485,69 @@ class TestCaptures(unittest.TestCase):
                 harness.latest_segment_capture(pathlib.Path(directory), "p1_cn23_gateway")
             )
 
+    def test_latest_run_captures_returns_the_newest_run_in_call_order(self):
+        with tempfile.TemporaryDirectory() as directory:
+            sandbox = pathlib.Path(directory)
+            segment = "p6_cn23_standalone_gateway"
+            (sandbox / "20261018T000000Z").mkdir()
+            (sandbox / "20261018T000000Z" / f"001-{segment}.response.parsed.json").write_text(
+                json.dumps({"body": "old"})
+            )
+            run_dir = sandbox / "20261026T000000Z"
+            run_dir.mkdir()
+            for stem, body in (("002", "byid"), ("001", "booking")):
+                (run_dir / f"{stem}-{segment}.response.parsed.json").write_text(
+                    json.dumps({"body": body})
+                )
+            (run_dir / f"003-{segment}.result.json").write_text("{}")
+            captures = harness.latest_run_captures(sandbox, segment)
+            self.assertEqual(
+                [(c.run_dir.name, c.parsed["body"]) for c in captures],
+                [("20261026T000000Z", "booking"), ("20261026T000000Z", "byid")],
+            )
+            latest = harness.latest_segment_capture(sandbox, segment)
+            assert latest is not None
+            self.assertEqual(latest.parsed["body"], "byid")
+            self.assertEqual(harness.latest_run_captures(sandbox, "p9_absent"), [])
+            self.assertEqual(
+                harness.latest_run_captures(sandbox / "missing", segment), []
+            )
+
+    def test_byid_failure_accepts_only_a_usable_printout(self):
+        printout = {"labelFormat": "PDF", "data": base64.b64encode(b"%PDF-1.4").decode()}
+        self.assertIsNone(
+            harness.byid_failure(
+                [{"itemIds": [{"status": "OK"}], "printout": printout}]
+            )
+        )
+        self.assertEqual(
+            harness.byid_failure(
+                [
+                    {
+                        "itemIds": [
+                            {"status": "FAIL", "errorResponse": {"message": "id not found"}}
+                        ],
+                        "printout": printout,
+                    }
+                ]
+            ),
+            "per-id FAIL: id not found",
+        )
+        self.assertEqual(
+            harness.byid_failure(
+                [{"itemIds": [{"status": "OK"}], "printoutComposition": {"cn23": 0}}]
+            ),
+            "no printout data in the by-id response",
+        )
+        self.assertEqual(
+            harness.byid_failure({"compositeFault": {"faults": []}}),
+            "the by-id response is not a labelPrintout list",
+        )
+        self.assertEqual(
+            harness.byid_failure(None),
+            "the by-id response is not a labelPrintout list",
+        )
+
     def test_find_print_id_and_absence(self):
         parsed = {
             "body": {
@@ -628,6 +691,32 @@ class TestPayloads(unittest.TestCase):
         self.assertEqual(len(declaration["detailedDescription"]), 2)
         self.assertEqual(
             entry["parties"]["consignee"]["party"]["address"]["countryCode"], "AL"
+        )
+
+    def test_standalone_cn23_payload_sets_the_connector_opt_in(self):
+        plain = self.gateway.mapper.create_shipment_request(
+            self.models.ShipmentRequest(
+                **payloads.cn23_payload("SE556000123401", "P1-CN23-GATEWAY")
+            )
+        )
+        standalone = self.gateway.mapper.create_shipment_request(
+            self.models.ShipmentRequest(
+                **payloads.cn23_payload(
+                    "SE556000123401",
+                    "P6-CN23-STANDALONE",
+                    standalone_customs_documents=True,
+                )
+            )
+        )
+        self.assertFalse(plain.ctx.get("standalone_customs_documents"))
+        self.assertIs(standalone.ctx["standalone_customs_documents"], True)
+        self.assertTrue(standalone.ctx.get("customs_declared"))
+        self.assertEqual(standalone.ctx.get("basic_service_code"), "91")
+        self.assertEqual((standalone.ctx.get("label_type") or "PDF").upper(), "PDF")
+        body = self.lib.to_dict(standalone.serialize())
+        self.assertIn("customsDeclarationCN23", body["shipment"][0])
+        self.assertNotIn(
+            "postnord_standalone_customs_documents", json.dumps(body)
         )
 
     def test_invoice_payload_books_the_commercial_invoice_branch(self):
