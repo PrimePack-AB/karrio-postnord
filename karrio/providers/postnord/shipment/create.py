@@ -35,9 +35,12 @@ carry no declared markers and are never content-verified. Every customs
 branch instead attests the booking response's declared
 ``printoutComposition`` against the kinds the branch composes, warning
 with ``POSTNORD_PRINTOUT_COMPOSITION_MISMATCH`` on a disagreement and
-staying silent when PostNord declares no composition.
+staying silent when PostNord declares no composition. The same label
+classification names the document type a client stamps the label under,
+exposed as ``meta.stamp_doc_type`` when the label carries a declaration.
 """
 
+import attr
 import base64
 import uuid
 import datetime
@@ -96,33 +99,96 @@ def parse_shipment_response(
             )
         )
 
-    messages += _customs_composition_messages(shipment, _response.ctx, settings)
+    classification = _customs_label_classification(shipment, _response.ctx)
+    shipment = _with_stamp_doc_type(shipment, classification)
+    messages += _customs_composition_messages(
+        shipment, classification, _response.ctx, settings
+    )
 
     return shipment, messages
 
 
+# A label classification, or the finding stating why none was made.
+LabelClassification = typing.Union[lib.CustomsClassification, str]
+
+
+def _customs_label_classification(
+    shipment: typing.Optional[models.ShipmentDetails],
+    ctx: dict,
+) -> typing.Optional[LabelClassification]:
+    """Classify a customs-declared booking's label with PostNord's sections.
+
+    One classification serves both the label content check and the stamp
+    doc type, so the two never disagree. ``None`` for no booking or a
+    booking that declared no customs; a string finding when the booking
+    returned no label data or the label could not be classified.
+    """
+    if shipment is None or not ctx.get("customs_declared"):
+        return None
+
+    if not shipment.docs.label:
+        return "no label data was returned"
+
+    try:
+        return lib.classify_customs_composition(
+            models.ShippingDocument(
+                category="label",
+                format=shipment.label_type,
+                base64=shipment.docs.label,
+            ),
+            sections=provider_stamping.DOCUMENT_SECTIONS,
+        )
+    except ValueError as classification_error:
+        return f"could not be classified: {classification_error}"
+
+
+def _with_stamp_doc_type(
+    shipment: typing.Optional[models.ShipmentDetails],
+    classification: typing.Optional[LabelClassification],
+) -> typing.Optional[models.ShipmentDetails]:
+    """Expose the classifier's stamp doc type as ``meta.stamp_doc_type``.
+
+    The doc type is the registry document type the label's declaration
+    stamps under (``label_cn22`` or ``label_cn23`` for a label composed with
+    one, the bare kind for a lone declaration), so a client passes it to the
+    stamping endpoint as is. A label carrying no declaration, or one that
+    was not classified, leaves meta unchanged.
+    """
+    if shipment is None or not isinstance(classification, lib.CustomsClassification):
+        return shipment
+
+    if not classification.doc_type:
+        return shipment
+
+    return attr.evolve(
+        shipment,
+        meta={**(shipment.meta or {}), "stamp_doc_type": classification.doc_type},
+    )
+
+
 def _customs_composition_messages(
     shipment: typing.Optional[models.ShipmentDetails],
+    classification: typing.Optional[LabelClassification],
     ctx: dict,
     settings: provider_utils.Settings,
 ) -> typing.List[models.Message]:
     """The customs composition warnings for a booked shipment, if any.
 
     Two warning-level checks run for a booking that declared customs, keyed
-    on its customs branch: the returned label's content is verified against
-    the branch's composed document, and PostNord's declared
+    on its customs branch: the returned label's classification is verified
+    against the branch's composed document, and PostNord's declared
     ``printout_composition`` is attested against the kinds the branch
     composes. Neither ever fails a booking, and each stays silent without
     its evidence.
     """
-    if shipment is None or not ctx.get("customs_declared"):
+    if shipment is None or classification is None:
         return []
 
     structure = provider_units.customs_structure(ctx.get("basic_service_code"))
     return [
         message
         for message in (
-            _label_composition_message(shipment, structure, settings),
+            _label_composition_message(shipment, classification, structure, settings),
             _composition_attestation_message(shipment, structure, settings),
         )
         if message is not None
@@ -131,6 +197,7 @@ def _customs_composition_messages(
 
 def _label_composition_message(
     shipment: models.ShipmentDetails,
+    classification: LabelClassification,
     structure: provider_units.CustomsStructure,
     settings: provider_utils.Settings,
 ) -> typing.Optional[models.Message]:
@@ -147,46 +214,33 @@ def _label_composition_message(
     markers in any format, so its label is never content-verified.
     """
     if structure == provider_units.CustomsStructure.cn22:
-        return _cn22_label_composition_message(shipment, settings)
+        return _cn22_label_composition_message(classification, settings)
 
     if structure == provider_units.CustomsStructure.cn23:
         if (shipment.label_type or "").upper() == provider_units.LabelType.ZPL.value:
             return None
-        return _cn23_label_composition_message(shipment, settings)
+        return _cn23_label_composition_message(classification, settings)
 
     return None
 
 
 def _cn22_label_composition_message(
-    shipment: models.ShipmentDetails,
+    classification: LabelClassification,
     settings: provider_utils.Settings,
 ) -> typing.Optional[models.Message]:
     """Verify the booking label is the shipping label composed with a CN22.
 
-    The label is classified with PostNord's declared document sections; any
-    other composition, or a booking returning no label data, yields a warning
-    and leaves the label unchanged, since the booking is already made.
+    Any other composition, or a booking returning no label data, yields a
+    warning and leaves the label unchanged, since the booking is already
+    made.
     """
     expected = lib.CustomsComposition.label_with_declaration
-    classification = None
-    if not shipment.docs.label:
-        finding = "no label data was returned"
-    else:
-        try:
-            classification = lib.classify_customs_composition(
-                models.ShippingDocument(
-                    category="label",
-                    format=shipment.label_type,
-                    base64=shipment.docs.label,
-                ),
-                sections=provider_stamping.DOCUMENT_SECTIONS,
-            )
-            finding = f"was classified as {classification.composition.value}"
-        except ValueError as classification_error:
-            finding = f"could not be classified: {classification_error}"
-
-    if classification is not None and classification.composition == expected:
+    if isinstance(classification, str):
+        finding = classification
+    elif classification.composition == expected:
         return None
+    else:
+        finding = f"was classified as {classification.composition.value}"
 
     return models.Message(
         carrier_name=settings.carrier_name,
@@ -201,41 +255,27 @@ def _cn22_label_composition_message(
 
 
 def _cn23_label_composition_message(
-    shipment: models.ShipmentDetails,
+    classification: LabelClassification,
     settings: provider_utils.Settings,
 ) -> typing.Optional[models.Message]:
     """Verify the booking label is the shipping label composed with a CN23.
 
-    The label is classified with PostNord's declared document sections and
-    the CN23 page-text markers seeded from the committed test-mode capture;
     ``kinds`` names every section whose markers matched, so the composition
     is the expected one when both the cn23 and label kinds are present. Any
     other kinds, or a booking returning no label data, yield a warning and
     leave the label unchanged, since the booking is already made.
     """
     expected = {"cn23", "label"}
-    if not shipment.docs.label:
-        finding = "no label data was returned"
+    if isinstance(classification, str):
+        finding = classification
+    elif expected <= set(classification.kinds):
+        return None
     else:
-        try:
-            classification = lib.classify_customs_composition(
-                models.ShippingDocument(
-                    category="label",
-                    format=shipment.label_type,
-                    base64=shipment.docs.label,
-                ),
-                sections=provider_stamping.DOCUMENT_SECTIONS,
-            )
-        except ValueError as classification_error:
-            finding = f"could not be classified: {classification_error}"
-        else:
-            if expected <= set(classification.kinds):
-                return None
-            finding = (
-                "the document text was classified as kinds "
-                f"[{', '.join(classification.kinds) or 'none'}], not "
-                f"[{', '.join(sorted(expected))}]"
-            )
+        finding = (
+            "the document text was classified as kinds "
+            f"[{', '.join(classification.kinds) or 'none'}], not "
+            f"[{', '.join(sorted(expected))}]"
+        )
 
     return models.Message(
         carrier_name=settings.carrier_name,

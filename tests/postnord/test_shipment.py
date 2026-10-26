@@ -12,6 +12,7 @@ import pypdf
 import karrio.sdk as karrio
 import karrio.lib as lib
 import karrio.core.models as models
+import karrio.core.utils.stamping as stamping
 import karrio.schemas.postnord.shipment_response as postnord_res
 import karrio.providers.postnord.units as provider_units
 
@@ -1779,6 +1780,60 @@ class TestPostNordLabelComposition(unittest.TestCase):
         self.assertEqual(messages, [])
         self.assertEqual(details.docs.label, TwoPageLabelPDF)
         self.assertEqual(details.meta["printout_composition"], ["cn22", "label"])
+
+    def test_stamp_doc_type_names_the_composed_label(self):
+        # meta.stamp_doc_type is the classifier's doc_type for the returned
+        # label, and every composed label's doc_type resolves a registered
+        # seed for its format: a client stamping a label + CN23 printout
+        # under the bare "cn23" missed every seed.
+        cases = [
+            ("cn22_pdf", CombinedBookingResponse, CustomsShipmentPayload, "PDF", "label_cn22"),
+            (
+                "cn22_two_page_pdf",
+                TwoPageBookingResponse,
+                ExportLetterCustomsPayload,
+                "PDF",
+                "label_cn22",
+            ),
+            ("cn22_zpl", CombinedBookingZPLResponse, CustomsShipmentPayload, "ZPL", "label_cn22"),
+            (
+                "cn23_pdf",
+                CN23BookingResponse,
+                InternationalParcelCustomsPayload,
+                "PDF",
+                "label_cn23",
+            ),
+            (
+                "cn23_zpl",
+                CN23ComposedBookingZPLResponse,
+                InternationalParcelCustomsPayload,
+                "ZPL",
+                "label_cn23",
+            ),
+        ]
+        for name, response, payload, label_type, doc_type in cases:
+            with self.subTest(case=name):
+                details, _ = self._book(response, payload=payload, label_type=label_type)
+                self.assertEqual(details.meta["stamp_doc_type"], doc_type)
+                paper = "A4" if label_type == "PDF" else "*"
+                self.assertIsNotNone(
+                    stamping._resolve_seed(
+                        f"postnord/{doc_type}/{label_type}/{paper}"
+                    ),
+                    f"no postnord seed resolves {doc_type}/{label_type}/{paper}",
+                )
+
+    def test_stamp_doc_type_absent_without_a_declaration(self):
+        # A customs booking whose label carries no declaration, and a booking
+        # declaring no customs, expose no stamp doc_type.
+        cases = [
+            ("customs_plain_zpl", CustomsBookingZPLResponse, CustomsShipmentPayload, "ZPL"),
+            ("no_customs", ShipmentResponse, ShipmentPayload, "PDF"),
+        ]
+        for name, response, payload, label_type in cases:
+            with self.subTest(case=name):
+                details, _ = self._book(response, payload=payload, label_type=label_type)
+                self.assertNotIn("stamp_doc_type", details.meta)
 
     def test_international_parcel_cn23_labels_pass_verification(self):
         # The test-mode capture's layout composes the label and the CN23:
@@ -4660,6 +4715,12 @@ CN23BookingResponse = _customs_booking_pdf(CN23LabelPDF).replace(
     '"label": 1, "cn22": 1', '"label": 1, "cn23": 1'
 )
 CN23BookingZPLResponse = _customs_booking_zpl(InternationalParcelParcelLabelZPL).replace(
+    '"label": 1, "cn22": 1', '"label": 1, "cn23": 1'
+)
+# The 91 ZPL composing the label and the CN23 as two formats, the second
+# opened by the cn23 marker comment.
+CN23ComposedLabelZPL = synthetic_printouts.INTERNATIONAL_PARCEL_CN23_ZPL
+CN23ComposedBookingZPLResponse = _customs_booking_zpl(CN23ComposedLabelZPL).replace(
     '"label": 1, "cn22": 1', '"label": 1, "cn23": 1'
 )
 # The ZPL booking with no declared composition: the content check skips the
