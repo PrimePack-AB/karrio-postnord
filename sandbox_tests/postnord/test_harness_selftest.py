@@ -271,6 +271,33 @@ class TestRedaction(unittest.TestCase):
         )
         self.assertNotIn(SYNTHETIC_APIKEY, json.dumps(safe))
 
+    def test_redact_retains_the_by_id_response_echoed_id(self):
+        # A by-id response member echoes the queried printId as a string
+        # under "itemIds" (the entry's list of members shares the key);
+        # masking it hides which id PostNord reported on.
+        print_id = "z9Y8x7W6v5U4t3S2r1Q0p9O8n7M6l5K4"
+        body = [
+            {
+                "itemIds": [
+                    {
+                        "itemIds": print_id,
+                        "status": "FAIL",
+                        "errorResponse": {"message": "id not found"},
+                    }
+                ]
+            }
+        ]
+        safe = harness.redact(body, [SYNTHETIC_APIKEY])
+        self.assertEqual(safe, body)
+        self.assertEqual(
+            harness.redact(dict(item_ids=print_id), []), dict(item_ids=print_id)
+        )
+        embedded = f"x{SYNTHETIC_APIKEY}x"
+        self.assertEqual(
+            harness.redact(dict(itemIds=embedded), [SYNTHETIC_APIKEY]),
+            dict(itemIds=f"x{harness.REDACTED}x"),
+        )
+
     def test_redact_masks_32_character_tokens_under_unlisted_keys(self):
         keylike = "z9Y8x7W6v5U4t3S2r1Q0p9O8n7M6l5K4"
         safe = harness.redact(

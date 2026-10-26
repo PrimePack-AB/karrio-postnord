@@ -143,7 +143,7 @@
    "sha256": "4bf41e6e95ddb86776fa7e0fdde5c5c2626c5d857e81385505a419945be46cb8",
    "byte_identical": true,
    "description": "the connector's follow-up by-id fetch, POST /rest/shipment/v3/labels/ids/pdf?definePrintout=onlyCustomsDeclarations keyed by the p6 booking's real printId: a per-id FAIL 'id not found' and no printout (the gateway trace records no HTTP status).",
-   "notes": "the member's echoed identifier is masked by the capture-time apikey heuristic (its key, itemIds, is not an artifact-id key); the request capture records the printId sent."
+   "notes": "the member's echoed identifier was masked by the pre-fix redactor, which did not yet exempt the itemIds key; the request capture records the printId sent."
   }
  ]
 }

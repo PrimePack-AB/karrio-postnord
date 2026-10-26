@@ -237,9 +237,9 @@ CATALOG: typing.Tuple[FixtureSpec, ...] = (
             "trace records no HTTP status)."
         ),
         notes=(
-            "the member's echoed identifier is masked by the capture-time "
-            "apikey heuristic (its key, itemIds, is not an artifact-id key); "
-            "the request capture records the printId sent."
+            "the member's echoed identifier was masked by the pre-fix "
+            "redactor, which did not yet exempt the itemIds key; the request "
+            "capture records the printId sent."
         ),
     ),
 )

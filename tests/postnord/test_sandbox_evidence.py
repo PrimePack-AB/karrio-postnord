@@ -40,7 +40,9 @@ NOTE_ROW = re.compile(
 # digest rule widens the harness's exact "sha256" key by suffix so the
 # manifest's source_sha256 keys admit their digests; both admit only
 # 64-lowercase-hex values, which no 32-character apikey is.
-ARTIFACT_ID_KEYS = frozenset({"printid", "print_id", "bookingid", "booking_id", "id"})
+ARTIFACT_ID_KEYS = frozenset(
+    {"printid", "print_id", "bookingid", "booking_id", "itemids", "item_ids", "id"}
+)
 APIKEY_RUN = re.compile(r"[A-Za-z0-9]{32,}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 APIKEY_RUN_BYTES = re.compile(rb"[A-Za-z0-9]{32,}")

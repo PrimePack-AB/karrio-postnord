@@ -115,7 +115,8 @@ The step was rejected, so the round stopped there: the ZPL segment was not fired
 This is the first test-mode by-id fetch keyed by a real printId (P4 was void), and it repeats the fork-era sandbox finding that test-mode bookings are unknown to the by-id print endpoint (`customs-declaration-live-verification.md`), now without the confound that the fork round's by-id fetch predated printId keying.
 Test mode therefore cannot supply a standalone CN23 by printId, and the lone `cn23` seeds need another source.
 The evidence is committed as `tests/postnord/fixtures/sandbox/p6-cn23-standalone-gateway.response.json` and `tests/postnord/fixtures/sandbox/p6-cn23-standalone-byid-pdf.response.json`, both byte-identical to their captures.
-The capture-time redactor masked the identifier the by-id response echoes under `itemIds`, because that key is not an artifact-id key; the request capture records the printId sent.
+The identifier the by-id response echoes under `itemIds` was masked in this round by the pre-fix redactor, which did not yet exempt that key; the request capture records the printId sent.
+The redactor now retains it (`itemIds` and `item_ids` joined the artifact-id keys after the round), and the committed fixtures stay byte-identical to the captures, so they keep the mask.
 
 | Run | File | sha256 |
 |---|---|---|

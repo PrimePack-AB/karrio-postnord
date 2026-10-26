@@ -48,13 +48,22 @@ SHA256_DIGEST = re.compile(r"[0-9a-f]{64}")
 # Artifact identifiers PostNord allocates are evidence, not credentials:
 # the repo's redaction carve-out lets printIds and bookingIds stand in
 # captures and notes. Keys carrying them (the API's camelCase, the
-# ledger's snake_case, and the by-id request's generic member key "id")
-# skip the apikey heuristic only; the literal configured secrets are
-# still masked inside them. The apikey travels as a query parameter and
-# every captured URL drops its query wholesale, so these exemptions
+# ledger's snake_case, the by-id request's generic member key "id", and
+# the by-id response's per-member "itemIds" string, which echoes the id
+# queried) skip the apikey heuristic only; the literal configured secrets
+# are still masked inside them. The apikey travels as a query parameter
+# and every captured URL drops its query wholesale, so these exemptions
 # cannot let it through.
 ARTIFACT_ID_KEYS = frozenset(
-    {"printid", "print_id", "bookingid", "booking_id", "id"}
+    {
+        "printid",
+        "print_id",
+        "bookingid",
+        "booking_id",
+        "itemids",
+        "item_ids",
+        "id",
+    }
 )
 DIGEST_KEYS = frozenset({"sha256"})
 DOCUMENT_EXTENSIONS = {"PDF": "pdf", "ZPL": "zpl"}
