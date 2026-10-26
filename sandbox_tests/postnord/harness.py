@@ -199,6 +199,22 @@ def strip_query(url: str) -> str:
     return urllib.parse.urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
 
 
+def public_query(url: str) -> typing.Dict[str, str]:
+    """``url``'s query parameters without the apikey credential.
+
+    ``strip_query`` drops the whole query from captured URLs; the remaining
+    parameters (``labelType``, ``locale``, ``definePrintout``) are request
+    evidence, so captures keep them under their own key.
+    """
+    return {
+        key: value
+        for key, value in urllib.parse.parse_qsl(
+            urllib.parse.urlsplit(str(url)).query, keep_blank_values=True
+        )
+        if key.lower() != "apikey"
+    }
+
+
 def redact(value: typing.Any, secrets: typing.Iterable[typing.Optional[str]]) -> typing.Any:
     """Copy ``value`` with query strings stripped and apikey-like runs masked.
 
@@ -480,8 +496,15 @@ class Session:
         if config.enabled:
             self._install_transport_guard()
 
-    def gateway(self):
-        """Create a test-mode gateway on the connector's sandbox origin."""
+    def gateway(
+        self, connection_config: typing.Optional[typing.Mapping[str, typing.Any]] = None
+    ):
+        """Create a test-mode gateway on the connector's sandbox origin.
+
+        ``connection_config`` becomes the connection's ``config`` (for
+        example ``label_size``), so a segment probes a connection setting
+        through the connector rather than around it.
+        """
         gateway = karrio.gateway["postnord"].create(
             dict(
                 id="sandbox",
@@ -491,6 +514,7 @@ class Session:
                 customer_number=self.config.customer_number,
                 issuer_code="Z12",
                 account_country_code="SE",
+                **({"config": dict(connection_config)} if connection_config else {}),
             )
         )
         if not gateway.settings.test_mode:
@@ -573,11 +597,14 @@ class Session:
     def write_request(
         self, stem: str, url: str, body: typing.Any, note: typing.Optional[str] = None
     ) -> None:
-        """Write a call's request: the query-stripped URL and the parsed body."""
+        """Write a call's request: the query-stripped URL, the query's
+        non-credential parameters, and the parsed body."""
+        query = public_query(url)
         self._write_json(
             f"{stem}.request.json",
             dict(
                 url=strip_query(url),
+                **({"query": query} if query else {}),
                 **({"note": note} if note else {}),
                 data=decoded_body(body) if isinstance(body, str) else body,
             ),

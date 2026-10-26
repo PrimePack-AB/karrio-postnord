@@ -52,7 +52,10 @@ SHIPPER_VAT_NO = "SE556123471101"
 
 
 def cn23_payload(
-    eori: str, reference: str, standalone_customs_documents: bool = False
+    eori: str,
+    reference: str,
+    standalone_customs_documents: bool = False,
+    label_type: typing.Optional[str] = None,
 ) -> dict:
     """International Parcel (91) to Albania with the CN23 customs block.
 
@@ -61,9 +64,13 @@ def cn23_payload(
     fixtures, with ``postalCharges`` booked as a zero amount in the
     totalValue currency. ``standalone_customs_documents`` sets the
     connector's opt-in, under which it follows an accepted booking with the
-    by-id ``definePrintout=onlyCustomsDeclarations`` fetch.
+    by-id ``definePrintout=onlyCustomsDeclarations`` fetch. ``label_type``
+    sets the request's file format (``PDF`` or ``ZPL``), which the
+    connector maps onto the booking endpoint path; unset, the connection
+    default (PDF) applies.
     """
     return dict(
+        **({"label_type": label_type} if label_type else {}),
         **(
             {"options": {"postnord_standalone_customs_documents": True}}
             if standalone_customs_documents

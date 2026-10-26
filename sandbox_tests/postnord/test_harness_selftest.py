@@ -837,3 +837,155 @@ class TestApplicationId(unittest.TestCase):
             ),
             {"name": "Karrio", "applicationId": 7351},
         )
+
+
+class TestPublicQuery(unittest.TestCase):
+    def test_public_query_drops_only_the_apikey(self):
+        self.assertEqual(
+            harness.public_query(
+                "https://atapi2.postnord.com/rest/shipment/v3/edi/labels/zpl"
+                f"?apikey={SYNTHETIC_APIKEY}&labelType=small&locale=en"
+            ),
+            {"labelType": "small", "locale": "en"},
+        )
+        self.assertEqual(
+            harness.public_query(
+                f"https://atapi2.postnord.com/x?APIKEY={SYNTHETIC_APIKEY}"
+            ),
+            {},
+        )
+
+    def test_write_request_keeps_the_non_credential_query(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session = offline_session(pathlib.Path(directory))
+            stem = session.next_stem("p7_label_size_small_zpl")
+            session.write_request(
+                stem,
+                "https://atapi2.postnord.com/rest/shipment/v3/edi/labels/zpl"
+                f"?apikey={SYNTHETIC_APIKEY}&labelType=small&locale=en",
+                dict(testIndicator=True),
+            )
+            text = (session.capture_dir / f"{stem}.request.json").read_text()
+            request = json.loads(text)
+            self.assertEqual(
+                request["url"],
+                "https://atapi2.postnord.com/rest/shipment/v3/edi/labels/zpl",
+            )
+            self.assertEqual(request["query"], {"labelType": "small", "locale": "en"})
+            self.assertNotIn(SYNTHETIC_APIKEY, text)
+            self.assertNotIn("apikey", text.lower())
+
+    def test_write_request_omits_an_empty_query(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session = offline_session(pathlib.Path(directory))
+            stem = session.next_stem("p1_cn23_gateway")
+            session.write_request(
+                stem,
+                "https://atapi2.postnord.com/rest/shipment/v3/edi/labels/pdf"
+                f"?apikey={SYNTHETIC_APIKEY}",
+                dict(testIndicator=True),
+            )
+            request = json.loads(
+                (session.capture_dir / f"{stem}.request.json").read_text()
+            )
+            self.assertNotIn("query", request)
+
+
+class TestP7LabelSizeSegments(unittest.TestCase):
+    """The p7 bookings reach the intended endpoint with the intended labelType.
+
+    The connector's request is intercepted at the proxy's ``lib.request``,
+    so each case's URL and body are pinned offline before anything fires.
+    """
+
+    def setUp(self):
+        from . import test_p7_label_size as p7
+
+        self.p7 = p7
+
+    def test_cases_fire_in_the_approved_order_with_distinct_markers(self):
+        self.assertEqual(
+            self.p7.CASES,
+            (("small", "ZPL"), ("small", "PDF"), ("ste", "PDF"), ("ste", "ZPL")),
+        )
+        segments = [self.p7.segment_name(*case) for case in self.p7.CASES]
+        self.assertEqual(
+            segments,
+            [
+                "p7_label_size_small_zpl",
+                "p7_label_size_small_pdf",
+                "p7_label_size_ste_pdf",
+                "p7_label_size_ste_zpl",
+            ],
+        )
+        methods = unittest.TestLoader().getTestCaseNames(
+            self.p7.TestSandboxP7LabelSize
+        )
+        self.assertEqual(
+            list(methods),
+            [
+                f"test_{index}_{size}_{fmt.lower()}"
+                for index, (size, fmt) in enumerate(self.p7.CASES, start=1)
+            ],
+        )
+        self.assertLessEqual(len(self.p7.CASES), harness.DEFAULT_MAX_BOOKINGS)
+
+    def test_gateway_carries_the_connection_label_size(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session = offline_session(pathlib.Path(directory))
+            self.assertIsNone(
+                session.gateway().settings.connection_config.label_size.state
+            )
+            gateway = session.gateway(dict(label_size="ste"))
+            self.assertEqual(
+                gateway.settings.connection_config.label_size.state, "ste"
+            )
+            self.assertTrue(gateway.settings.test_mode)
+            self.assertEqual(gateway.settings.server_url, harness.SANDBOX_ORIGIN)
+
+    def test_each_case_books_the_cn23_branch_on_its_format_endpoint(self):
+        from unittest import mock
+
+        import karrio.core.models as models
+        import karrio.sdk as karrio
+
+        for label_size, label_format in self.p7.CASES:
+            with self.subTest(label_size=label_size, label_format=label_format):
+                with tempfile.TemporaryDirectory() as directory:
+                    session = offline_session(pathlib.Path(directory))
+                    gateway = session.gateway(dict(label_size=label_size))
+                    with mock.patch(
+                        "karrio.mappers.postnord.proxy.lib.request"
+                    ) as request:
+                        request.return_value = "{}"
+                        karrio.Shipment.create(
+                            models.ShipmentRequest(
+                                **payloads.cn23_payload(
+                                    "SE556000123401",
+                                    self.p7.reference(label_size, label_format),
+                                    label_type=label_format,
+                                )
+                            )
+                        ).from_(gateway)
+                    self.assertEqual(request.call_count, 1)
+                    url = request.call_args[1]["url"]
+                    self.assertEqual(
+                        harness.strip_query(url),
+                        f"{harness.SANDBOX_ORIGIN}/rest/shipment/v3/edi/labels/"
+                        f"{label_format.lower()}",
+                    )
+                    self.assertEqual(
+                        harness.public_query(url)["labelType"], label_size
+                    )
+                    harness.check_url(url)
+                    body = json.loads(request.call_args[1]["data"])
+                    harness.check_booking_body(url, json.dumps(body))
+                    entry = body["shipment"][0]
+                    self.assertEqual(entry["service"]["basicServiceCode"], "91")
+                    self.assertIn("customsDeclarationCN23", entry)
+                    self.assertEqual(
+                        entry["parties"]["consignee"]["party"]["address"][
+                            "countryCode"
+                        ],
+                        "AL",
+                    )
