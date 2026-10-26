@@ -21,21 +21,18 @@ to the item id when no printId was allocated (``POST
 issued by the proxy after the booking) and attach it under
 ``docs.extra_documents``.
 
-For CN22-structured services with customs data, PostNord composes the CN22
-into the booking printout in both formats, which is returned unchanged as
-``docs.label``. The parser verifies that composition with the SDK customs
-classifier and PostNord's ``DOCUMENT_SECTIONS``; a mismatch is a
-``POSTNORD_UNEXPECTED_LABEL_COMPOSITION`` warning, never a booking failure.
-CN23-structured bookings are verified the same way on PDF labels, against
-the CN23 page-text markers seeded from the committed test-mode capture
-(the SDK classifier's composition vocabulary is closed to the CN22, so
-that check reads the classifier's matched kinds connector-side); a ZPL
-label skips it. Customs-invoice labels
-carry no declared markers and are never content-verified. Every customs
-branch instead attests the booking response's declared
-``printoutComposition`` against the kinds the branch composes, warning
-with ``POSTNORD_PRINTOUT_COMPOSITION_MISMATCH`` on a disagreement and
-staying silent when PostNord declares no composition. The same label
+For declaration-structured services with customs data, PostNord composes
+the CN22 (letters) or the CN23 (International Parcel) into the booking
+printout in both formats, which is returned unchanged as ``docs.label``.
+The parser verifies that composition with the SDK customs classifier and
+PostNord's ``DOCUMENT_SECTIONS``: the label must classify as
+``label_cn22`` or ``label_cn23`` respectively, and a mismatch is a
+``POSTNORD_UNEXPECTED_LABEL_COMPOSITION`` warning, never a booking
+failure. Customs-invoice labels carry no declared markers and are never
+content-verified. Every customs branch instead attests the booking
+response's declared ``printoutComposition`` against the kinds the branch
+composes, warning with ``POSTNORD_PRINTOUT_COMPOSITION_MISMATCH`` on a
+disagreement and staying silent when PostNord declares no composition. The same label
 classification names the document type a client stamps the label under,
 exposed as ``meta.stamp_doc_type`` when the label carries a declaration.
 """
@@ -188,7 +185,7 @@ def _customs_composition_messages(
     return [
         message
         for message in (
-            _label_composition_message(shipment, classification, structure, settings),
+            _label_composition_message(classification, structure, settings),
             _composition_attestation_message(shipment, structure, settings),
         )
         if message is not None
@@ -196,29 +193,21 @@ def _customs_composition_messages(
 
 
 def _label_composition_message(
-    shipment: models.ShipmentDetails,
     classification: LabelClassification,
     structure: provider_units.CustomsStructure,
     settings: provider_utils.Settings,
 ) -> typing.Optional[models.Message]:
-    """Verify the booking label is the branch's composed document, if backed.
+    """Verify the booking label is the branch's composed document.
 
-    The CN22 composes into both formats, so every CN22 label is
-    content-verified. The CN23 verification is backed only by the committed
-    test-mode PDF capture, so it reads the classifier's matched kinds
-    connector-side (the SDK classifier's composition vocabulary is closed
-    to the CN22: its declaration kind and doc types are cn22 constants, so
-    a CN23 printout always classifies as carrying no declaration) and a
-    ZPL label skips it; the skip predates the ZPL cn23 section marker,
-    which was measured on a later ZPL capture. The customs invoice declares no section
-    markers in any format, so its label is never content-verified.
+    The CN22 and the CN23 compose into the label printout in both formats,
+    so their labels are verified against the SDK classifier's doc type in
+    either format. The customs invoice declares no section markers in any
+    format, so its label is never content-verified.
     """
     if structure == provider_units.CustomsStructure.cn22:
         return _cn22_label_composition_message(classification, settings)
 
     if structure == provider_units.CustomsStructure.cn23:
-        if (shipment.label_type or "").upper() == provider_units.LabelType.ZPL.value:
-            return None
         return _cn23_label_composition_message(classification, settings)
 
     return None
@@ -230,15 +219,18 @@ def _cn22_label_composition_message(
 ) -> typing.Optional[models.Message]:
     """Verify the booking label is the shipping label composed with a CN22.
 
-    Any other composition, or a booking returning no label data, yields a
-    warning and leaves the label unchanged, since the booking is already
-    made.
+    The label passes when it classifies as ``label_cn22``. Any other
+    composition or declaration kind, or a booking returning no label data,
+    yields a warning and leaves the label unchanged, since the booking is
+    already made.
     """
     expected = lib.CustomsComposition.label_with_declaration
     if isinstance(classification, str):
         finding = classification
-    elif classification.composition == expected:
+    elif classification.doc_type == lib.COMBINED_DOC_TYPES["cn22"]:
         return None
+    elif classification.composition == expected:
+        finding = f"was classified as {classification.doc_type}"
     else:
         finding = f"was classified as {classification.composition.value}"
 
@@ -260,21 +252,19 @@ def _cn23_label_composition_message(
 ) -> typing.Optional[models.Message]:
     """Verify the booking label is the shipping label composed with a CN23.
 
-    ``kinds`` names every section whose markers matched, so the composition
-    is the expected one when both the cn23 and label kinds are present. Any
-    other kinds, or a booking returning no label data, yield a warning and
-    leave the label unchanged, since the booking is already made.
+    The label passes when it classifies as ``label_cn23``; otherwise the
+    warning names the kinds whose markers matched. A booking returning no
+    label data also warns, and the label is left unchanged, since the
+    booking is already made.
     """
-    expected = {"cn23", "label"}
     if isinstance(classification, str):
         finding = classification
-    elif expected <= set(classification.kinds):
+    elif classification.doc_type == lib.COMBINED_DOC_TYPES["cn23"]:
         return None
     else:
         finding = (
             "the document text was classified as kinds "
-            f"[{', '.join(classification.kinds) or 'none'}], not "
-            f"[{', '.join(sorted(expected))}]"
+            f"[{', '.join(classification.kinds) or 'none'}], not [cn23, label]"
         )
 
     return models.Message(

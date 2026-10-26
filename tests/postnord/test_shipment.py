@@ -1805,7 +1805,7 @@ class TestPostNordLabelComposition(unittest.TestCase):
             ),
             (
                 "cn23_zpl",
-                CN23ComposedBookingZPLResponse,
+                CN23BookingZPLResponse,
                 InternationalParcelCustomsPayload,
                 "ZPL",
                 "label_cn23",
@@ -1836,18 +1836,11 @@ class TestPostNordLabelComposition(unittest.TestCase):
                 self.assertNotIn("stamp_doc_type", details.meta)
 
     def test_international_parcel_cn23_labels_pass_verification(self):
-        # The test-mode capture's layout composes the label and the CN23:
-        # the PDF verifies its content against the CN23 page-text markers,
-        # and both formats attest the declared composition in silence. The
-        # ZPL content check skips the format.
+        # The label composed with the CN23 passes the content check in both
+        # formats, and both attest the declared composition in silence.
         cases = [
             ("pdf", CN23BookingResponse, "PDF", CN23LabelPDF),
-            (
-                "zpl",
-                CN23BookingZPLResponse,
-                "ZPL",
-                _b64(InternationalParcelParcelLabelZPL),
-            ),
+            ("zpl", CN23BookingZPLResponse, "ZPL", _b64(CN23LabelZPL)),
         ]
         for name, response, label_type, label in cases:
             with self.subTest(case=name):
@@ -1860,24 +1853,65 @@ class TestPostNordLabelComposition(unittest.TestCase):
                 self.assertEqual(details.docs.label, label)
                 self.assertEqual(details.meta["printout_composition"], ["cn23", "label"])
 
-    def test_international_parcel_zpl_content_check_skips_without_evidence(self):
-        # A CN23 ZPL booking with no declared composition reports nothing:
-        # the content check skips the format and the
-        # attestation stays silent when PostNord declares no composition.
+    def test_international_parcel_zpl_without_declared_composition_passes(self):
+        # A composed CN23 ZPL booking with no declared composition reports
+        # nothing: the content check passes and the attestation stays silent
+        # when PostNord declares no composition.
         details, messages = self._book(
             CN23BookingNoCompositionZPLResponse,
             payload=InternationalParcelCustomsPayload,
             label_type="ZPL",
         )
-        self.assertEqual(details.docs.label, _b64(InternationalParcelParcelLabelZPL))
+        self.assertEqual(details.docs.label, _b64(CN23LabelZPL))
         self.assertNotIn("printout_composition", details.meta)
         self.assertListEqual(lib.to_dict(messages), [])
 
+    def test_international_parcel_zpl_label_missing_the_cn23_warns(self):
+        # A 91 ZPL label without the CN23 section is flagged even though
+        # PostNord declared the CN23 composition; the booking still succeeds.
+        details, messages = self._book(
+            CN23BookingBareLabelZPLResponse,
+            payload=InternationalParcelCustomsPayload,
+            label_type="ZPL",
+        )
+        self.assertEqual(details.docs.label, _b64(InternationalParcelParcelLabelZPL))
+        self.assertNotIn("stamp_doc_type", details.meta)
+        self.assertEqual(
+            [(message.code, message.message) for message in messages],
+            [
+                (
+                    "postnord_unexpected_label_composition",
+                    "The label was expected to be the shipping label composed "
+                    "with a CN23 but the document text was classified as kinds "
+                    "[label], not [cn23, label]",
+                )
+            ],
+        )
+
+    def test_letter_label_composed_with_a_cn23_warns(self):
+        # A CN22-branch label composed with a CN23 instead is flagged: the
+        # classifier's doc type, not the composition alone, decides.
+        details, messages = self._book(
+            CN23BookingResponse.replace('"label": 1, "cn23": 1', '"label": 1, "cn22": 1')
+        )
+        self.assertEqual(details.meta["stamp_doc_type"], "label_cn23")
+        self.assertEqual(
+            [(message.code, message.message) for message in messages],
+            [
+                (
+                    "postnord_unexpected_label_composition",
+                    "The label was expected to be the shipping label composed "
+                    "with a CN22 (label_with_declaration) but was classified as "
+                    "label_cn23",
+                )
+            ],
+        )
+
     def test_pre_cn23_international_parcel_captures_now_warn(self):
         # The 2026-09-28 91 captures predate the CN23 switch and compose a
-        # CN22: the PDF content check warns (the CN23 markers are absent)
-        # and both formats attest a declared composition that disagrees
-        # with the cn23 branch. The bookings still succeed with their labels.
+        # CN22: in both formats the content check warns (the CN23 markers
+        # are absent) and the declared composition disagrees with the cn23
+        # branch. The bookings still succeed with their labels.
         cases = [
             (
                 "pdf",
@@ -1903,6 +1937,12 @@ class TestPostNordLabelComposition(unittest.TestCase):
                 InternationalParcelBookingZPLResponse,
                 "ZPL",
                 [
+                    (
+                        "postnord_unexpected_label_composition",
+                        "The label was expected to be the shipping label "
+                        "composed with a CN23 but the document text was "
+                        "classified as kinds [cn22, label], not [cn23, label]",
+                    ),
                     (
                         "postnord_printout_composition_mismatch",
                         "PostNord declared the booking printout as composed of "
@@ -4707,31 +4747,29 @@ CombinedBookingNoPrintIdResponse = CustomsBookingNoPrintIdResponse.replace(
 # The CN23-composition layout of the 2026-10-19 sandbox capture (P1): a 91
 # SE→AL booking whose two-page A4 PDF composes the parcel label and the
 # CN23, printoutComposition {cn23: 1, label: 1}, replayed as a booking
-# response. The ZPL sibling declares the same attested composition around a
-# plain parcel label, which the ZPL content check never reads: it covers the
-# attestation and the by-id fetch while the content check skips the format.
+# response. The ZPL sibling composes the label and the CN23 as two formats,
+# the second opened by the cn23 marker comment.
 CN23LabelPDF = synthetic_printouts.INTERNATIONAL_PARCEL_CN23_PDF
 CN23BookingResponse = _customs_booking_pdf(CN23LabelPDF).replace(
     '"label": 1, "cn22": 1', '"label": 1, "cn23": 1'
 )
-CN23BookingZPLResponse = _customs_booking_zpl(InternationalParcelParcelLabelZPL).replace(
+CN23LabelZPL = synthetic_printouts.INTERNATIONAL_PARCEL_CN23_ZPL
+CN23BookingZPLResponse = _customs_booking_zpl(CN23LabelZPL).replace(
     '"label": 1, "cn22": 1', '"label": 1, "cn23": 1'
 )
-# The 91 ZPL composing the label and the CN23 as two formats, the second
-# opened by the cn23 marker comment.
-CN23ComposedLabelZPL = synthetic_printouts.INTERNATIONAL_PARCEL_CN23_ZPL
-CN23ComposedBookingZPLResponse = _customs_booking_zpl(CN23ComposedLabelZPL).replace(
-    '"label": 1, "cn22": 1', '"label": 1, "cn23": 1'
+# The ZPL booking with no declared composition: the attestation stays
+# silent, and the composed label passes the content check.
+CN23BookingNoCompositionZPLResponse = _customs_booking_zpl(CN23LabelZPL).replace(
+    ',\n    "printoutComposition": {"label": 1, "cn22": 1}\n', "\n"
 )
-# The ZPL booking with no declared composition: the content check skips the
-# format and the attestation stays silent, so the booking reports nothing.
-CN23BookingNoCompositionZPLResponse = _customs_booking_zpl(
+# A 91 ZPL booking declaring the CN23 composition around a bare parcel
+# label: the CN23 section is missing.
+CN23BookingBareLabelZPLResponse = _customs_booking_zpl(
     InternationalParcelParcelLabelZPL
-).replace(',\n    "printoutComposition": {"label": 1, "cn22": 1}\n', "\n")
+).replace('"label": 1, "cn22": 1', '"label": 1, "cn23": 1')
 
 # Booking responses and their returned labels per declaration-structured
-# service: the letters compose a CN22, International Parcel the CN23
-# composition (PDF) or its ZPL stand-in.
+# service: the letters compose a CN22, International Parcel the CN23.
 DECLARATION_BOOKINGS = {
     "postnord_export_letter": {
         "PDF": (CombinedBookingResponse, CombinedLabelPDF),
@@ -4743,6 +4781,6 @@ DECLARATION_BOOKINGS = {
     },
     "postnord_postpaket_utrikes": {
         "PDF": (CN23BookingResponse, CN23LabelPDF),
-        "ZPL": (CN23BookingZPLResponse, _b64(InternationalParcelParcelLabelZPL)),
+        "ZPL": (CN23BookingZPLResponse, _b64(CN23LabelZPL)),
     },
 }
