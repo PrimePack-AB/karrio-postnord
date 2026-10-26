@@ -82,6 +82,7 @@ ROUND_THREE = "20261019T120422Z"
 ROUND_FIVE = "20261019T121021Z"
 ROUND_FOUR = "20261019T121054Z"
 ROUND_SIX = "20261026T101429Z"
+ROUND_SEVEN = "20261026T104757Z"
 
 CATALOG: typing.Tuple[FixtureSpec, ...] = (
     FixtureSpec(
@@ -240,6 +241,67 @@ CATALOG: typing.Tuple[FixtureSpec, ...] = (
             "the member's echoed identifier was masked by the pre-fix "
             "redactor, which did not yet exempt the itemIds key; the request "
             "capture records the printId sent."
+        ),
+    ),    FixtureSpec(
+        fixture="p7-label-size-small-zpl.response.json",
+        kind="response.parsed",
+        segment="p7_label_size_small_zpl",
+        run=ROUND_SEVEN,
+        capture="001-p7_label_size_small_zpl.response.parsed.json",
+        description=(
+            "the p1 booking shape (91 SE to AL, mapper-built "
+            "customsDeclarationCN23) in ZPL on a connection with "
+            "label_size small, sent as labelType=small to "
+            "/rest/shipment/v3/edi/labels/zpl: "
+            "accepted, bookingId, item id, and printId allocated, "
+            "printoutComposition {cn23: 1, label: 1}, no labelType echoed."
+        ),
+    ),
+    FixtureSpec(
+        fixture="p7-label-size-small-pdf.response.json",
+        kind="response.parsed",
+        segment="p7_label_size_small_pdf",
+        run=ROUND_SEVEN,
+        capture="003-p7_label_size_small_pdf.response.parsed.json",
+        description=(
+            "the p1 booking shape (91 SE to AL, mapper-built "
+            "customsDeclarationCN23) in PDF on a connection with "
+            "label_size small, sent as labelType=small to "
+            "/rest/shipment/v3/edi/labels/pdf: "
+            "accepted, bookingId, item id, and printId allocated, "
+            "printoutComposition {cn23: 1, label: 1}, no labelType echoed."
+        ),
+    ),
+    FixtureSpec(
+        fixture="p7-label-size-ste-pdf.response.json",
+        kind="response.parsed",
+        segment="p7_label_size_ste_pdf",
+        run=ROUND_SEVEN,
+        capture="005-p7_label_size_ste_pdf.response.parsed.json",
+        description=(
+            "the p1 booking shape (91 SE to AL, mapper-built "
+            "customsDeclarationCN23) in PDF on a connection with "
+            "label_size ste, sent as labelType=ste to "
+            "/rest/shipment/v3/edi/labels/pdf: "
+            "accepted, bookingId, item id, and printId allocated, "
+            "printoutComposition {cn23: 1, label: 1}, no labelType echoed."
+        ),
+    ),
+    FixtureSpec(
+        fixture="p7-label-size-ste-zpl.response.json",
+        kind="response.parsed",
+        segment="p7_label_size_ste_zpl",
+        run=ROUND_SEVEN,
+        capture="007-p7_label_size_ste_zpl.response.parsed.json",
+        description=(
+            "the p1 booking shape (91 SE to AL, mapper-built "
+            "customsDeclarationCN23) in ZPL on a connection with "
+            "label_size ste, sent as labelType=ste to "
+            "/rest/shipment/v3/edi/labels/zpl: "
+            "accepted, bookingId, item id, and printId allocated, "
+            "printoutComposition {cn23: 1, label: 1}, no labelType echoed."
+            " ste is not among the ZPL labelType values Booking APIs "
+            "3.5.29.1 lists, and PostNord accepted it without a fault."
         ),
     ),
 )

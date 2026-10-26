@@ -1,0 +1,134 @@
+{
+ "transport": "response",
+ "body": {
+  "bookingResponse": {
+   "bookingId": "ILPN0010LLFI8REMTDCNOREWJEAKEF",
+   "idInformation": [
+    {
+     "status": "OK",
+     "references": {
+      "item": [],
+      "shipment": [
+       {
+        "referenceType": "IL",
+        "referenceNo": "ILPN0010LLFI8REMTDCNOREWJEAKEF"
+       }
+      ]
+     },
+     "ids": [
+      {
+       "idType": "itemId",
+       "value": "CC613726844SE",
+       "printId": "126c3c7b694944a487e0e59c435f59d4"
+      }
+     ],
+     "urls": [
+      {
+       "type": "TRACKING",
+       "url": "https://attracking.postnord.com/en/"
+      }
+     ]
+    }
+   ],
+   "handlingResponse": {
+    "message": "Handle EDI for successful processing",
+    "compositeFault": {
+     "faults": [
+      {
+       "paramValues": [
+        {
+         "param": "original",
+         "value": "+35541234567"
+        },
+        {
+         "param": "updated",
+         "value": "REMOVED"
+        },
+        {
+         "param": "format",
+         "value": "E.164"
+        }
+       ],
+       "explanationText": "Phone or sms number was either invalid or incorrectly formatted",
+       "faultCode": "SAO-HR-25060301",
+       "faultReferences": [
+        {
+         "key": "HANDLE_EDI",
+         "value": "shipment.0.parties.consignee.party.contact.phoneNo"
+        }
+       ]
+      },
+      {
+       "paramValues": [
+        {
+         "param": "original",
+         "value": "+35541234567"
+        },
+        {
+         "param": "updated",
+         "value": "REMOVED"
+        },
+        {
+         "param": "format",
+         "value": "E.164"
+        }
+       ],
+       "explanationText": "Phone or sms number was either invalid or incorrectly formatted",
+       "faultCode": "SAO-HR-25060301",
+       "faultReferences": [
+        {
+         "key": "HANDLE_EDI",
+         "value": "shipment.0.parties.consignee.party.contact.smsNo"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "labelPrintout": [
+   {
+    "itemIds": [
+     {
+      "itemIds": "CC613726844SE",
+      "printId": "126c3c7b694944a487e0e59c435f59d4",
+      "basicServiceCode": "91",
+      "status": "OK",
+      "reference": {
+       "item": [],
+       "shipment": []
+      }
+     }
+    ],
+    "printout": {
+     "labelFormat": "PDF",
+     "encoding": "base64",
+     "data": {
+      "omitted": "printout data stored as raw bytes alongside",
+      "file": "005-p7_label_size_ste_pdf.printout01.pdf",
+      "files": [
+       "005-p7_label_size_ste_pdf.printout01.pdf"
+      ],
+      "sha256": [
+       "23842c0bfd2b20e400520a41e405e954eb30881c423f5ad41a89306df4819bf8"
+      ]
+     },
+     "type": "LABEL"
+    },
+    "printoutComposition": {
+     "cn23": 1,
+     "label": 1,
+     "cn22": 0,
+     "securityDeclarations": 0,
+     "customsInvoice": 0,
+     "loadList": 0,
+     "dpc": 0,
+     "dangerousGoods": 0,
+     "fraktsedel": 0,
+     "routingDocument": 0,
+     "datametrixbarcode": 0
+    }
+   }
+  ]
+ }
+}

@@ -125,3 +125,27 @@ The redactor now retains it (`itemIds` and `item_ids` joined the artifact-id key
 | 20261026T101429Z | `001-p6_cn23_standalone_gateway.response.parsed.json` | `82cb0534e5c91ffd259a51d6a5a1978f15f79a0ca285c34ec9e8aac9a0147ccc` |
 | 20261026T101429Z | `002-p6_cn23_standalone_gateway.request.json` | `c2d9ad22657062e77f677009a9d7e60ad5e62a22df2acb280fc906b116b210db` |
 | 20261026T101429Z | `002-p6_cn23_standalone_gateway.response.parsed.json` | `4bf41e6e95ddb86776fa7e0fdde5c5c2626c5d857e81385505a419945be46cb8` |
+
+## Update — 2026-10-26: P7, label size
+
+P7 asks what PostNord composes for the CN23 booking at the non-default label sizes, and whether the `label_cn23` stamping seeds, all measured on standard-size output, still fit.
+The connector's `label_size` connection option (`standard`, `small`, `ste`; unset sends nothing and PostNord defaults to standard) travels as the `labelType` query parameter on both booking endpoints.
+Booking APIs 3.5.29.1 lists `standard`, `small`, and `ste` for PDF and `standard` and `small` for ZPL, and says small is not available for all labels, with standard defaulted.
+The round ran through the same harness in four one-shot segments (commit c67c68f), `p7_label_size_small_zpl`, `p7_label_size_small_pdf`, `p7_label_size_ste_pdf`, and `p7_label_size_ste_zpl`, fired once each in that order.
+Each books the P1 shape through the connector (service 91, Stockholm, SE to Tirana, AL, one 1.0 kg parcel, the mapper-built inline CN23) on a connection with the given `label_size`, in the given file format, with the standalone customs documents opt-in off, so each booking was the only call made.
+`ste` on ZPL is outside the documented values and was fired once as specified.
+The request captures record the query parameters sent, apikey excluded (`labelType` and `locale=en`), a field the harness gained for this round.
+
+The four bookings ran in run `20261026T104757Z` between 10:47:58 and 10:48:01 UTC.
+The responses are committed as `tests/postnord/fixtures/sandbox/p7-label-size-small-zpl.response.json`, `p7-label-size-small-pdf.response.json`, `p7-label-size-ste-pdf.response.json`, and `p7-label-size-ste-zpl.response.json`, all byte-identical to their captures; the printouts stay in the run directory only.
+
+| Run | File | sha256 |
+|---|---|---|
+| 20261026T104757Z | `001-p7_label_size_small_zpl.response.parsed.json` | `bae6e87ec2ce1b97a9074728be25a7ec77916be4fdb38f38e3e692350a198d8b` |
+| 20261026T104757Z | `001-p7_label_size_small_zpl.printout01.zpl` | `2429256fd2e088a4a281ff77a056fdfc2137e202e35ebb1b61f19c4d7591f3fd` |
+| 20261026T104757Z | `003-p7_label_size_small_pdf.response.parsed.json` | `c0476193a7eb9af150a5077b67956f85eb81ae25378da89cf667e8276eb59e7a` |
+| 20261026T104757Z | `003-p7_label_size_small_pdf.printout01.pdf` | `76e77a959f0718dceb870f546044d459bca13ef501a7122fd4496880232162e6` |
+| 20261026T104757Z | `005-p7_label_size_ste_pdf.response.parsed.json` | `0054a618f9ec19453fc1211c53cc2cddaf2c64ff9d3ddb01d8fb705f4ec3b10b` |
+| 20261026T104757Z | `005-p7_label_size_ste_pdf.printout01.pdf` | `23842c0bfd2b20e400520a41e405e954eb30881c423f5ad41a89306df4819bf8` |
+| 20261026T104757Z | `007-p7_label_size_ste_zpl.response.parsed.json` | `1a9edfd9d9c8c03c003725db0eddc77eddd1a08a8fe2b99916d7917325630108` |
+| 20261026T104757Z | `007-p7_label_size_ste_zpl.printout01.zpl` | `306294fbed933c8641b835953dd828e6ac9676b2e3e17ac1f9a550a03bb3e0a2` |

@@ -67,6 +67,10 @@ EXPECTED_SEGMENTS = {
     "p5_no_customs_with_application_raw": {"response.parsed", "printout"},
     "p4_byid_fetch_raw": {"response.parsed"},
     "p6_cn23_standalone_gateway": {"response.parsed"},
+    "p7_label_size_small_zpl": {"response.parsed"},
+    "p7_label_size_small_pdf": {"response.parsed"},
+    "p7_label_size_ste_pdf": {"response.parsed"},
+    "p7_label_size_ste_zpl": {"response.parsed"},
 }
 
 
@@ -180,7 +184,7 @@ class TestSandboxEvidenceManifest(unittest.TestCase):
                 self.assertEqual(entry["source_sha256"], table[source])
                 pinned += 1
         # every byte-identical fixture, the printouts included, is pinned
-        self.assertEqual(pinned, 8)
+        self.assertEqual(pinned, 12)
 
     def test_redacted_fixtures_record_no_source_digest(self):
         table = note_capture_table()
@@ -340,6 +344,33 @@ class TestSandboxEvidenceSecrets(unittest.TestCase):
         self.assertEqual(member["status"], "FAIL")
         self.assertEqual(member["errorResponse"]["message"], "id not found")
         self.assertNotIn("printout", entry)
+
+    def test_the_p7_label_size_bookings_compose_label_and_cn23(self):
+        cases = {
+            "p7-label-size-small-zpl.response.json": "ZPL",
+            "p7-label-size-small-pdf.response.json": "PDF",
+            "p7-label-size-ste-pdf.response.json": "PDF",
+            "p7-label-size-ste-zpl.response.json": "ZPL",
+        }
+        entries = {e["fixture"]: e for e in manifest()["fixtures"]}
+        for fixture, label_format in cases.items():
+            with self.subTest(fixture=fixture):
+                self.assertTrue(entries[fixture]["byte_identical"])
+                body = json.loads((FIXTURE_DIR / fixture).read_text())["body"]
+                (assigned,) = body["bookingResponse"]["idInformation"][0]["ids"]
+                self.assertEqual(assigned["idType"], "itemId")
+                self.assertRegex(assigned["printId"], r"^[0-9a-f]{32}$")
+                (printout,) = body["labelPrintout"]
+                composition = {
+                    kind: count
+                    for kind, count in printout["printoutComposition"].items()
+                    if count
+                }
+                self.assertEqual(composition, {"cn23": 1, "label": 1})
+                self.assertEqual(printout["printout"]["labelFormat"], label_format)
+                data = printout["printout"]["data"]
+                self.assertIn("omitted", data)
+                self.assertRegex(data["sha256"][0], r"^[0-9a-f]{64}$")
 
 
 if __name__ == "__main__":
