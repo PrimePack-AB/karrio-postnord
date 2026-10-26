@@ -149,3 +149,50 @@ The responses are committed as `tests/postnord/fixtures/sandbox/p7-label-size-sm
 | 20261026T104757Z | `005-p7_label_size_ste_pdf.printout01.pdf` | `23842c0bfd2b20e400520a41e405e954eb30881c423f5ad41a89306df4819bf8` |
 | 20261026T104757Z | `007-p7_label_size_ste_zpl.response.parsed.json` | `1a9edfd9d9c8c03c003725db0eddc77eddd1a08a8fe2b99916d7917325630108` |
 | 20261026T104757Z | `007-p7_label_size_ste_zpl.printout01.zpl` | `306294fbed933c8641b835953dd828e6ac9676b2e3e17ac1f9a550a03bb3e0a2` |
+
+PostNord accepted all four bookings, `ste` on ZPL included, with no fault beyond the two `SAO-HR-25060301` phone and sms sanitizations P1 also drew.
+No response echoes `labelType` or any size; each carries one printout of composition `{cn23: 1, label: 1}` in the requested format, and the karrio parse returned `meta.printout_composition` `[cn23, label]`, `meta.stamp_doc_type` `label_cn23`, and no messages.
+
+| UTC (response logged) | Segment | labelType sent | Outcome | bookingId | Item id | printId |
+|---|---|---|---|---|---|---|
+| 10:47:59.12 | `p7_label_size_small_zpl` | `small` on `/edi/labels/zpl` | accepted | `ILPN0010LLEACZEIBNOKWZUKRUBBID` | `CC613726827SE` | `578a80fe48b149f59a994fe2a49de889` |
+| 10:47:59.77 | `p7_label_size_small_pdf` | `small` on `/edi/labels/pdf` | accepted | `ILPN0010LLFI7LQTIMDKXMSBFTKWOW` | `CC613726835SE` | `c981c17083724fa5b5bfb6edb4214ebd` |
+| 10:48:00.44 | `p7_label_size_ste_pdf` | `ste` on `/edi/labels/pdf` | accepted | `ILPN0010LLFI8REMTDCNOREWJEAKEF` | `CC613726844SE` | `126c3c7b694944a487e0e59c435f59d4` |
+| 10:48:01.05 | `p7_label_size_ste_zpl` | `ste` on `/edi/labels/zpl` | accepted | `ILPN0010LLEADSUONONBXGXWMDFVKW` | `CC613726858SE` | `dfdce424bb7341d686a49ba1077f2edb` |
+
+The printouts were compared offline against the standard-size references the `label_cn23` seeds were measured on: for ZPL the local fixture `postnord_label_cn23_international_parcel.zpl` (sha256 `8478d813…0a785`), for PDF the P1 printout `sandbox/p1-cn23-gateway.printout01.pdf` (sha256 `0b5e7ae9…65e66`).
+No document content is reproduced here; the comparison counts fields, boxes, and text runs and reports coordinates only.
+
+Neither ZPL size changes the layout.
+Both ZPL printouts are two `^XA`…`^XZ` formats, the International Parcel label then the CN23, each under `^LL1520` with no `^PW` anywhere, as in the reference.
+The cn23 marker (`^FX CN23_CUSTOMS_DECLARATION^FS`) and the label marker are present, and the cn22 markers absent.
+All 73 `^GB` boxes of the reference (5 in the label format, 68 in the CN23 format) recur at the same origins and sizes, and every reference field origin recurs; the captures add 1 field origin in the label format and 7 in the CN23 format, at y 365, 369, and 650, the order-specific rows of this shipment, far above the signature area.
+The CN23's "Sender's signature" caption is at `^FO263,1445` and the 385 x 30-dot signature box at `^FO448,1440`, identical to the reference.
+The `small` and `ste` ZPL printouts are geometrically identical to each other: same boxes, same field origins.
+So on ZPL the 91 printout comes back standard-size for both values, consistent with the spec's "standard will be defaulted"; whether PostNord ignored `labelType` or defaulted it cannot be told from the bytes.
+
+`small` does not change the PDF either.
+The small PDF is two A4 pages (595.28 x 841.89 pt), label then CN23, and all 88 text runs that occur once in both it and the reference sit at identical positions with identical font sizes, on both pages; "Sender's signature" is on page 2 at (85.418, 236.211) mm in a 7.09 pt font, as in the reference.
+
+`ste` moves the PDF content but not the page.
+The ste PDF is also two A4 pages, label then CN23, but its page content is translated straight down by 25.09 mm on both pages (every one of the 88 matching text runs moves by (0, +25.08…25.09) mm, font sizes unchanged, and the pages' leading content transform changes from `1 0 0 1 148.85 151.74 cm` to `1 0 0 1 148.85 0.12 cm`).
+"Sender's signature" sits on page 2 at (85.418, 261.299) mm, 7.09 pt; the lowest text on page 2 reaches 261.3 mm and on page 1 277.3 mm, inside the 297 mm page.
+This matches the spec's description of `ste` as standard size with a special alignment.
+
+Each printout was then classified with `karrio.lib.classify_customs_composition` and stamped dry with `karrio.lib.stamp_document` (carrier `postnord`, the classified doc_type, a synthetic PNG signature, date `2026-10-26`, no page or placement, as the fork's documents stamp view passes them), against the fork SDK at snapshot-2026.10.23.2 (8125fe510), in scratch outside the repository.
+
+| Printout | Classification | Key resolved | Bounds checks | Placement | Measured sign area |
+|---|---|---|---|---|---|
+| reference ZPL | label_with_declaration, `label_cn23` | `postnord/label_cn23/ZPL/*` | pass | format 2, `^FO452,1423`, 376 x 64 dots | box `^FO448,1440`, 385 x 30 |
+| small ZPL | label_with_declaration, `label_cn23` | `postnord/label_cn23/ZPL/*` | pass | format 2, `^FO452,1423`, 376 x 64 dots | box `^FO448,1440`, 385 x 30 |
+| ste ZPL | label_with_declaration, `label_cn23` | `postnord/label_cn23/ZPL/*` | pass | format 2, `^FO452,1423`, 376 x 64 dots | box `^FO448,1440`, 385 x 30 |
+| reference PDF (P1) | label_with_declaration, `label_cn23`, page 2 | `postnord/label_cn23/PDF/A4` | pass | page 2, x 109.898, y 232.201, 38.1 x 9.8 mm | keyword at y 236.211 |
+| small PDF | label_with_declaration, `label_cn23`, page 2 | `postnord/label_cn23/PDF/A4` | pass | page 2, x 109.898, y 232.201, 38.1 x 9.8 mm | keyword at y 236.211 |
+| ste PDF | label_with_declaration, `label_cn23`, page 2 | `postnord/label_cn23/PDF/A4` | pass | page 2, x 109.898, y 257.289, 38.1 x 9.8 mm | keyword at y 261.299 |
+
+On ZPL and on the small PDF the stamp lands exactly where it lands on the reference.
+On the ste PDF the keyword-anchored seed follows the 25.09 mm shift: the strip keeps its 4.01 mm offset above the keyword baseline and 24.48 mm along it, so relative to the caption, and by the uniform translation relative to the cell rules, it sits where it does on the reference, and its bottom edge (267.1 mm) stays inside the page.
+Only the seed's coordinate `placement` (x 109.9, y 232.2 on page 2) would be wrong on a ste PDF, and the SDK does not use it for a `label_cn23/PDF/A4` key, because the seed carries PDF keyword geometry.
+
+Scope: this is test mode, so a production printout may still differ; the ZPL reference is the 2026-10-23 local fixture rather than a capture from this lane, so the comparison rests on its static form geometry (boxes and field origins), which matched exactly.
+No seed was added or changed.
