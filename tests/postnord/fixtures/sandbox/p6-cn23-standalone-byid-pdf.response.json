@@ -1,0 +1,16 @@
+{
+ "transport": "response",
+ "body": [
+  {
+   "itemIds": [
+    {
+     "itemIds": "<redacted>",
+     "status": "FAIL",
+     "errorResponse": {
+      "message": "id not found"
+     }
+    }
+   ]
+  }
+ ]
+}

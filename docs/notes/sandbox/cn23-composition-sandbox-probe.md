@@ -98,3 +98,29 @@ The two printouts among those captures, `sandbox/p1-cn23-gateway.printout01.pdf`
 The CN23 stamping seeds were derived from the P1 printout and the verification shipped (commit 01bade5): PDF cn23 page-text markers and the `label_cn23/PDF/A4` signature seed, the 91 content check on PDF connector-side through the classifier's kinds with ZPL skipped, and the `postnord_printout_composition_mismatch` attestation across the customs branches.
 The published pages outside this note now carry the sandbox claims, citing those fixtures.
 The remaining scope limits stand: everything here is test mode, P4 stays void, the CN23 ZPL composition is uncaptured, and the by-id and declaration endpoints' test-mode behavior still rests on the prior fork evidence.
+
+## Update — 2026-10-26: P6, standalone CN23 by printId
+
+P6 set out to capture a standalone CN23 printout, the customs declaration alone without the shipping label, in PDF and in ZPL, as the source for lone `cn23/PDF/A4` and `cn23/ZPL/*` stamping seeds.
+It ran through the same harness in two segments (commit 5439d35).
+`p6_cn23_standalone_gateway` books the P1 shape through the connector with the `postnord_standalone_customs_documents` opt-in set, so the connector follows the accepted booking with its by-id fetch.
+`p6_cn23_standalone_zpl_byid` reads that run and fetches the same printId from `/rest/shipment/v3/labels/ids/zpl` (the by-id endpoints take the format in the path, so the second format needs no second booking; Booking APIs 3.5.29.1), and it fires only when the PDF fetch returned a usable printout.
+
+The booking ran at 10:14:29 UTC and PostNord accepted it: `bookingId` `ILPN0010LLBFMNKGRNZBLNIBOCPZAN`, item id `CC613726800SE`, printId `b53283f91cb142b09a544831a449bca5`.
+As in P1, the `printoutComposition` was `{cn23: 1, label: 1}`, the booking printout is one two-page A4 PDF, and the two `SAO-HR-25060301` phone and sms sanitizations came back under `handlingResponse`.
+The connector's follow-up `POST /rest/shipment/v3/labels/ids/pdf?definePrintout=onlyCustomsDeclarations` with that printId answered with a per-id FAIL, "id not found", and no printout.
+The karrio parse returned empty `extra_documents` and the message "customs document retrieval failed for item id ...: id not found".
+The step was rejected, so the round stopped there: the ZPL segment was not fired, and its marker is unburned.
+
+This is the first test-mode by-id fetch keyed by a real printId (P4 was void), and it repeats the fork-era sandbox finding that test-mode bookings are unknown to the by-id print endpoint (`customs-declaration-live-verification.md`), now without the confound that the fork round's by-id fetch predated printId keying.
+Test mode therefore cannot supply a standalone CN23 by printId, and the lone `cn23` seeds need another source.
+The evidence is committed as `tests/postnord/fixtures/sandbox/p6-cn23-standalone-gateway.response.json` and `tests/postnord/fixtures/sandbox/p6-cn23-standalone-byid-pdf.response.json`, both byte-identical to their captures.
+The capture-time redactor masked the identifier the by-id response echoes under `itemIds`, because that key is not an artifact-id key; the request capture records the printId sent.
+
+| Run | File | sha256 |
+|---|---|---|
+| 20261026T101429Z | `001-p6_cn23_standalone_gateway.printout01.pdf` | `1d82739d851063ed696511d4b75341a02f64223c5808af76b5c6f50423f0b687` |
+| 20261026T101429Z | `001-p6_cn23_standalone_gateway.request.json` | not recorded (carries the customer number) |
+| 20261026T101429Z | `001-p6_cn23_standalone_gateway.response.parsed.json` | `82cb0534e5c91ffd259a51d6a5a1978f15f79a0ca285c34ec9e8aac9a0147ccc` |
+| 20261026T101429Z | `002-p6_cn23_standalone_gateway.request.json` | `c2d9ad22657062e77f677009a9d7e60ad5e62a22df2acb280fc906b116b210db` |
+| 20261026T101429Z | `002-p6_cn23_standalone_gateway.response.parsed.json` | `4bf41e6e95ddb86776fa7e0fdde5c5c2626c5d857e81385505a419945be46cb8` |

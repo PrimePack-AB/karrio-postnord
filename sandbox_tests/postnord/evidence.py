@@ -81,6 +81,7 @@ ROUND_TWO = "20261019T120356Z"
 ROUND_THREE = "20261019T120422Z"
 ROUND_FIVE = "20261019T121021Z"
 ROUND_FOUR = "20261019T121054Z"
+ROUND_SIX = "20261026T101429Z"
 
 CATALOG: typing.Tuple[FixtureSpec, ...] = (
     FixtureSpec(
@@ -208,6 +209,38 @@ CATALOG: typing.Tuple[FixtureSpec, ...] = (
             "claim about the by-id endpoint rests on it."
         ),
         void=True,
+    ),
+    FixtureSpec(
+        fixture="p6-cn23-standalone-gateway.response.json",
+        kind="response.parsed",
+        segment="p6_cn23_standalone_gateway",
+        run=ROUND_SIX,
+        capture="001-p6_cn23_standalone_gateway.response.parsed.json",
+        description=(
+            "the p1 booking shape (91 SE to AL, mapper-built "
+            "customsDeclarationCN23, PDF) with the standalone customs "
+            "documents opt-in: accepted, bookingId, item id, and a real "
+            "printId allocated, printoutComposition {cn23: 1, label: 1}."
+        ),
+    ),
+    FixtureSpec(
+        fixture="p6-cn23-standalone-byid-pdf.response.json",
+        kind="response.parsed",
+        segment="p6_cn23_standalone_gateway",
+        run=ROUND_SIX,
+        capture="002-p6_cn23_standalone_gateway.response.parsed.json",
+        description=(
+            "the connector's follow-up by-id fetch, POST "
+            "/rest/shipment/v3/labels/ids/pdf?definePrintout="
+            "onlyCustomsDeclarations keyed by the p6 booking's real printId: "
+            "a per-id FAIL 'id not found' and no printout (the gateway "
+            "trace records no HTTP status)."
+        ),
+        notes=(
+            "the member's echoed identifier is masked by the capture-time "
+            "apikey heuristic (its key, itemIds, is not an artifact-id key); "
+            "the request capture records the printId sent."
+        ),
     ),
 )
 

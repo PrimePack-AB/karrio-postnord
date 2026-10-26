@@ -54,6 +54,7 @@ EXPECTED_SEGMENTS = {
     "p3_no_customs_raw-91": {"response.parsed"},
     "p5_no_customs_with_application_raw": {"response.parsed", "printout"},
     "p4_byid_fetch_raw": {"response.parsed"},
+    "p6_cn23_standalone_gateway": {"response.parsed"},
 }
 
 
@@ -167,7 +168,7 @@ class TestSandboxEvidenceManifest(unittest.TestCase):
                 self.assertEqual(entry["source_sha256"], table[source])
                 pinned += 1
         # every byte-identical fixture, the printouts included, is pinned
-        self.assertEqual(pinned, 6)
+        self.assertEqual(pinned, 8)
 
     def test_redacted_fixtures_record_no_source_digest(self):
         table = note_capture_table()
@@ -251,6 +252,26 @@ class TestSandboxEvidenceSecrets(unittest.TestCase):
         member = body[0]["itemIds"][0]
         self.assertEqual(member["status"], "FAIL")
         self.assertEqual(member["errorResponse"]["message"], "id not found")
+
+    def test_the_p6_standalone_fetch_fails_per_id_on_a_real_print_id(self):
+        entries = {e["fixture"]: e for e in manifest()["fixtures"]}
+        booking = json.loads(
+            (FIXTURE_DIR / "p6-cn23-standalone-gateway.response.json").read_text()
+        )["body"]
+        (assigned,) = booking["bookingResponse"]["idInformation"][0]["ids"]
+        self.assertEqual(assigned["idType"], "itemId")
+        self.assertRegex(assigned["printId"], r"^[0-9a-f]{32}$")
+        (printout,) = booking["labelPrintout"]
+        self.assertEqual(printout["printoutComposition"]["cn23"], 1)
+        self.assertEqual(printout["printoutComposition"]["label"], 1)
+        byid_entry = entries["p6-cn23-standalone-byid-pdf.response.json"]
+        self.assertNotIn("void", byid_entry)
+        body = json.loads((FIXTURE_DIR / byid_entry["fixture"]).read_text())["body"]
+        (entry,) = body
+        (member,) = entry["itemIds"]
+        self.assertEqual(member["status"], "FAIL")
+        self.assertEqual(member["errorResponse"]["message"], "id not found")
+        self.assertNotIn("printout", entry)
 
 
 if __name__ == "__main__":
