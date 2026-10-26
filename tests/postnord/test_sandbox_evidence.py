@@ -18,12 +18,14 @@ import hashlib
 import json
 import pathlib
 import re
+import subprocess
 import typing
 import unittest
 
 from postnord import local_fixtures
 
-FIXTURE_DIR = pathlib.Path(__file__).parent / "fixtures" / "sandbox"
+FIXTURES_ROOT = pathlib.Path(__file__).parent / "fixtures"
+FIXTURE_DIR = FIXTURES_ROOT / "sandbox"
 MANIFEST_PATH = FIXTURE_DIR / "manifest.json"
 PROBE_NOTE = (
     pathlib.Path(__file__).resolve().parents[2]
@@ -48,6 +50,14 @@ SHA256 = re.compile(r"[0-9a-f]{64}")
 APIKEY_RUN_BYTES = re.compile(rb"[A-Za-z0-9]{32,}")
 PDF_TRAILER_ID = re.compile(rb"/ID\s*\[<([A-Fa-f0-9]{32})>\s*<([A-Fa-f0-9]{32})>\]")
 PDF_PAGE = re.compile(rb"/Type\s*/Page[^s]")
+# A PostNord document in a fixture shows as a long base64 run, as raw PDF or
+# ZPL, or as base64 of a PDF header (JVBERi0 decodes to "%PDF-").
+DOCUMENT_SIGNS = (
+    (re.compile(rb"[A-Za-z0-9+/]{200,}"), "a base64 run of 200+ characters"),
+    (re.compile(rb"%PDF"), "a raw PDF header"),
+    (re.compile(rb"\^XA"), "a raw ZPL format start"),
+    (re.compile(rb"JVBERi0"), "a base64 PDF header"),
+)
 KINDS = ("response.parsed", "printout")
 EXPECTED_SEGMENTS = {
     "p1_cn23_gateway": {"response.parsed", "printout"},
@@ -195,6 +205,62 @@ class TestSandboxEvidenceManifest(unittest.TestCase):
             )
             kinds_by_segment.setdefault(entry["segment"], set()).add(entry["kind"])
         self.assertEqual(kinds_by_segment, EXPECTED_SEGMENTS)
+
+
+def tracked_fixture_files() -> typing.List[pathlib.Path]:
+    """The git-tracked files under tests/postnord/fixtures/.
+
+    Outside a git checkout every file there is checked except the
+    gitignored local printout copies (*.pdf, *.zpl).
+    """
+    try:
+        listed = subprocess.run(
+            ["git", "ls-files", "-z", "--", "."],
+            cwd=FIXTURES_ROOT,
+            capture_output=True,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return sorted(
+            path
+            for path in FIXTURES_ROOT.rglob("*")
+            if path.is_file() and path.suffix not in (".pdf", ".zpl")
+        )
+    return sorted(
+        FIXTURES_ROOT / name.decode() for name in listed.split(b"\0") if name
+    )
+
+
+def document_signs(raw: bytes) -> typing.List[str]:
+    """What in ``raw`` looks like a PostNord document."""
+    return [label for pattern, label in DOCUMENT_SIGNS if pattern.search(raw)]
+
+
+class TestNoVendoredDocuments(unittest.TestCase):
+    """No tracked fixture carries a document PostNord returned (GTC clause 6).
+
+    The harness replaces printout data with a digest placeholder before a
+    capture is written; this guards the committed side of that rule.
+    """
+
+    def test_no_tracked_fixture_carries_a_postnord_document(self):
+        files = tracked_fixture_files()
+        self.assertTrue(files)
+        for path in files:
+            with self.subTest(fixture=str(path.relative_to(FIXTURES_ROOT))):
+                self.assertEqual(document_signs(path.read_bytes()), [])
+
+    def test_document_signs_flag_each_shape(self):
+        self.assertEqual(
+            document_signs(b'{"data": "' + b"QUJD" * 60 + b'"}'),
+            ["a base64 run of 200+ characters"],
+        )
+        self.assertEqual(document_signs(b"%PDF-1.4"), ["a raw PDF header"])
+        self.assertEqual(document_signs(b"^XA^FO50,50^XZ"), ["a raw ZPL format start"])
+        self.assertEqual(document_signs(b'"data": "JVBERi0xLjQ="'), ["a base64 PDF header"])
+        self.assertEqual(
+            document_signs(b'{"sha256": ["' + b"a" * 64 + b'"]}'), []
+        )
 
 
 class TestSandboxEvidenceSecrets(unittest.TestCase):
