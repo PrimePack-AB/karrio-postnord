@@ -49,7 +49,8 @@ class PhoneNumberPolicy(lib.StrEnum):
 
     ``always`` sends each party's phone number. ``omit_when_email_suffices``
     drops a party's ``phoneNo`` and ``smsNo`` when the party has an email and
-    no booked service needs its phone (see CONSIGNEE_PHONE_SERVICES).
+    neither the basic service (PRODUCT_PHONE_PARTIES) nor, for the consignee,
+    a booked additional service (CONSIGNEE_PHONE_SERVICES) needs its phone.
     """
 
     always = "always"
@@ -280,6 +281,30 @@ CONSIGNEE_PHONE_SERVICES = frozenset(
         ShippingOption.postnord_driver_notification.value.code,
     }
 )
+
+
+
+class PartyRole(lib.StrEnum):
+    """Booking parties whose contact data a product rule can require."""
+
+    consignor = "consignor"
+    consignee = "consignee"
+
+
+# PostNord General Descriptions: the parties whose phone the basic service
+# requires, kept under PhoneNumberPolicy.omit_when_email_suffices. Parcel (18)
+# makes the consignee phone mandatory, Return Pickup (20) SMS on both parties,
+# and Return (24) e-mail and SMS on the return part; "return part" does not
+# name a party, so 24 keeps both phones as the safe reading.
+PRODUCT_PHONE_PARTIES: typing.Dict[str, typing.FrozenSet[PartyRole]] = {
+    ShippingService.postnord_parcel.value: frozenset({PartyRole.consignee}),
+    ShippingService.postnord_return_pickup.value: frozenset(
+        {PartyRole.consignor, PartyRole.consignee}
+    ),
+    ShippingService.postnord_return.value: frozenset(
+        {PartyRole.consignor, PartyRole.consignee}
+    ),
+}
 
 
 def phone_number_policy(requested: typing.Any, configured: typing.Any) -> PhoneNumberPolicy:

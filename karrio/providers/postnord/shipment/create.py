@@ -1004,10 +1004,17 @@ def shipment_request(
         )
         == provider_units.PhoneNumberPolicy.omit_when_email_suffices
     )
-    consignee_phone_needed = any(
-        code in provider_units.CONSIGNEE_PHONE_SERVICES
-        for code in additional_service_codes
+    product_phone_parties = provider_units.PRODUCT_PHONE_PARTIES.get(
+        service, frozenset()
     )
+    consignee_phone_needed = (
+        provider_units.PartyRole.consignee in product_phone_parties
+        or any(
+            code in provider_units.CONSIGNEE_PHONE_SERVICES
+            for code in additional_service_codes
+        )
+    )
+    consignor_phone_needed = provider_units.PartyRole.consignor in product_phone_parties
 
     # Booking locale: request options.language > connection config language >
     # recipient country (when config locale_by_recipient is enabled) > "en".
@@ -1195,7 +1202,9 @@ def shipment_request(
                 ),
                 parties=postnord_req.PartiesType(
                     consignor=_party(
-                        shipper, with_consignor_id=True, phone_needed=False
+                        shipper,
+                        with_consignor_id=True,
+                        phone_needed=consignor_phone_needed,
                     ),
                     consignee=_party(
                         recipient,

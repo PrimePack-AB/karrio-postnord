@@ -17,6 +17,15 @@ OMIT_GATEWAY = gateway_with_phone_number_policy("omit_when_email_suffices")
 SHIPPER_PHONE = ShipmentPayload["shipper"]["phone_number"]
 RECIPIENT_PHONE = ShipmentPayload["recipient"]["phone_number"]
 
+# MyPack Home (17) requires consignee SMS or e-mail contact data only, so no
+# product rule keeps a phone; C7 is PostNord's mandatory add-on for 17.
+HOME_PAYLOAD = {
+    **ShipmentPayload,
+    "service": "postnord_mypack_home",
+    "options": {"postnord_flexchange": True},
+}
+COLLECT_PAYLOAD = {**ShipmentPayload, "service": "postnord_mypack_collect", "options": {}}
+
 ALWAYS = provider_units.PhoneNumberPolicy.always
 OMIT = provider_units.PhoneNumberPolicy.omit_when_email_suffices
 
@@ -56,6 +65,17 @@ class TestPhoneNumberPolicyResolution(unittest.TestCase):
                     provider_units.phone_number_policy(requested, configured), expected
                 )
 
+    def test_product_phone_parties_follow_the_general_descriptions(self):
+        role = provider_units.PartyRole
+        self.assertEqual(
+            provider_units.PRODUCT_PHONE_PARTIES,
+            {
+                "18": frozenset({role.consignee}),
+                "20": frozenset({role.consignor, role.consignee}),
+                "24": frozenset({role.consignor, role.consignee}),
+            },
+        )
+
     def test_phone_dependent_services_are_the_phone_channels(self):
         self.assertEqual(
             provider_units.CONSIGNEE_PHONE_SERVICES,
@@ -72,14 +92,14 @@ class TestPhoneNumberPolicyResolution(unittest.TestCase):
 
 
 def _booking(request_gateway, payload=None, options=None, shipper=None, recipient=None):
-    payload = payload or ShipmentPayload
+    payload = payload or HOME_PAYLOAD
     request = request_gateway.mapper.create_shipment_request(
         models.ShipmentRequest(
             **{
                 **payload,
                 "shipper": _without_none({**payload["shipper"], **(shipper or {})}),
                 "recipient": _without_none({**payload["recipient"], **(recipient or {})}),
-                "options": {} if options is None else options,
+                "options": {**payload.get("options", {}), **(options or {})},
             }
         )
     )
@@ -151,7 +171,7 @@ class TestPhoneNumberPolicyBooking(unittest.TestCase):
         self.assertEqual(_phones(_contact(shipment, "consignee")), OMITTED)
 
     def test_defaulted_sms_notification_keeps_the_consignee_phone(self):
-        collect = {**ShipmentPayload, "service": "postnord_mypack_collect"}
+        collect = COLLECT_PAYLOAD
         cases = [
             (["sms"], "A3", _kept(RECIPIENT_PHONE)),
             (["email", "sms"], "A4", OMITTED),
@@ -173,7 +193,7 @@ class TestPhoneNumberPolicyBooking(unittest.TestCase):
                 self.assertEqual(_phones(_contact(shipment, "consignee")), expected)
 
     def test_requested_default_sms_notification_keeps_the_consignee_phone(self):
-        collect = {**ShipmentPayload, "service": "postnord_mypack_collect"}
+        collect = COLLECT_PAYLOAD
         shipment, ctx = _booking(
             OMIT_GATEWAY,
             payload=collect,
@@ -197,6 +217,20 @@ class TestPhoneNumberPolicyBooking(unittest.TestCase):
                 self.assertEqual(_phones(contact), OMITTED)
                 self.assertEqual(contact["emailAddress"], "sender@example.com")
 
+    def test_product_required_phones_are_kept(self):
+        cases = [
+            ("postnord_parcel", OMITTED, _kept(RECIPIENT_PHONE)),
+            ("postnord_return_pickup", _kept(SHIPPER_PHONE), _kept(RECIPIENT_PHONE)),
+            ("postnord_return", _kept(SHIPPER_PHONE), _kept(RECIPIENT_PHONE)),
+        ]
+        for service, consignor, consignee in cases:
+            with self.subTest(service=service):
+                shipment, _ = _booking(
+                    OMIT_GATEWAY, payload={**ShipmentPayload, "service": service, "options": {}}
+                )
+                self.assertEqual(_phones(_contact(shipment, "consignor")), consignor)
+                self.assertEqual(_phones(_contact(shipment, "consignee")), consignee)
+
     def test_customs_invoice_contacts_keep_their_phones(self):
         shipment, ctx = _booking(OMIT_GATEWAY, payload=CustomsInvoiceShipmentPayload)
         invoice = shipment["customsInvoice"]
@@ -209,7 +243,10 @@ class TestPhoneNumberPolicyBooking(unittest.TestCase):
             CustomsInvoiceShipmentPayload["recipient"]["phone_number"],
         )
         self.assertEqual(_phones(_contact(shipment, "consignor")), OMITTED)
-        self.assertEqual(_phones(_contact(shipment, "consignee")), OMITTED)
+        self.assertEqual(
+            _phones(_contact(shipment, "consignee")),
+            _kept(CustomsInvoiceShipmentPayload["recipient"]["phone_number"]),
+        )
 
     def test_request_option_overrides_the_connection_policy(self):
         cases = [
@@ -230,7 +267,7 @@ class TestPhoneNumberPolicyBooking(unittest.TestCase):
         shipment, _ = _booking(
             gateway, options={"postnord_phone_number_policy": "omit_when_email_suffices"}
         )
-        self.assertNotIn("additionalServiceCode", shipment["service"])
+        self.assertEqual(shipment["service"]["additionalServiceCode"], ["C7"])
 
 
 class TestPhoneNumberPolicyPickup(unittest.TestCase):
