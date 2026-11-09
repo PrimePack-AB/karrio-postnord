@@ -38,6 +38,18 @@ ALBANIA = {
     "email": "receiver@example.com",
 }
 
+# Generic invented domestic consignee: no real person or business.
+GOTHENBURG = {
+    "address_line1": "Kungsgatan 10",
+    "city": "Göteborg",
+    "postal_code": "41119",
+    "country_code": "SE",
+    "person_name": "Test Receiver",
+    "company_name": "Receiver AB",
+    "phone_number": "+46709876543",
+    "email": "receiver@example.com",
+}
+
 PARCEL = {
     "weight": 1.0,
     "width": 20.0,
@@ -106,6 +118,39 @@ def cn23_payload(
                     "origin_country": "SE",
                 },
             ],
+        },
+    )
+
+
+def domestic_payload(
+    service: str,
+    reference: str,
+    phone_number_policy: str,
+    options: typing.Optional[typing.Mapping[str, typing.Any]] = None,
+    recipient_without_phone: bool = False,
+) -> dict:
+    """A domestic Stockholm to Göteborg booking of ``service``, one parcel.
+
+    Both parties carry a person name, a company name, an e-mail address,
+    and an E.164 phone number; ``recipient_without_phone`` drops the
+    consignee's phone and keeps its e-mail. ``phone_number_policy`` is
+    sent as the per-shipment ``postnord_phone_number_policy`` option,
+    alongside ``options``. No customs block: SE to SE needs none.
+    """
+    recipient = (
+        {key: value for key, value in GOTHENBURG.items() if key != "phone_number"}
+        if recipient_without_phone
+        else GOTHENBURG
+    )
+    return dict(
+        shipper=SHIPPER,
+        recipient=recipient,
+        parcels=[PARCEL],
+        service=service,
+        reference=reference,
+        options={
+            **dict(options or {}),
+            "postnord_phone_number_policy": phone_number_policy,
         },
     )
 

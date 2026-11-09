@@ -989,3 +989,95 @@ class TestP7LabelSizeSegments(unittest.TestCase):
                         ],
                         "AL",
                     )
+
+
+class TestP8PhoneNumberPolicySegments(unittest.TestCase):
+    """The p8 bookings send the intended party phones on the PDF endpoint.
+
+    The connector's request is intercepted at the proxy's ``lib.request``,
+    so each case's body is pinned offline before anything fires.
+    """
+
+    def setUp(self):
+        from . import test_p8_phone_number_policy as p8
+
+        self.p8 = p8
+
+    def test_cases_fire_in_the_approved_order_with_distinct_markers(self):
+        segments = [self.p8.segment_name(case) for case in self.p8.CASES]
+        self.assertEqual(
+            segments,
+            [
+                "p8_phone_policy_17_always",
+                "p8_phone_policy_17_omit",
+                "p8_phone_policy_18_omit",
+                "p8_phone_policy_18_no_consignee_phone",
+            ],
+        )
+        methods = unittest.TestLoader().getTestCaseNames(
+            self.p8.TestSandboxP8PhoneNumberPolicy
+        )
+        self.assertEqual(
+            list(methods),
+            [
+                f"test_{index}_{case.name}"
+                for index, case in enumerate(self.p8.CASES, start=1)
+            ],
+        )
+        self.assertLessEqual(len(self.p8.CASES), harness.DEFAULT_MAX_BOOKINGS)
+
+    def test_each_case_sends_the_expected_party_phones(self):
+        from unittest import mock
+
+        import karrio.sdk as karrio
+
+        expected = {
+            "17_always": ("17", ["C7"], {"consignor": True, "consignee": True}),
+            "17_omit": ("17", ["C7"], {"consignor": False, "consignee": False}),
+            "18_omit": ("18", [], {"consignor": False, "consignee": True}),
+            "18_no_consignee_phone": (
+                "18",
+                [],
+                {"consignor": True, "consignee": False},
+            ),
+        }
+        for case in self.p8.CASES:
+            with self.subTest(case=case.name):
+                service_code, addons, phones = expected[case.name]
+                with tempfile.TemporaryDirectory() as directory:
+                    session = offline_session(pathlib.Path(directory))
+                    gateway = session.gateway()
+                    self.assertEqual(
+                        self.p8.party_phones(self.p8.mapped_body(gateway, case)),
+                        phones,
+                    )
+                    with mock.patch(
+                        "karrio.mappers.postnord.proxy.lib.request"
+                    ) as request:
+                        request.return_value = "{}"
+                        karrio.Shipment.create(
+                            self.p8.shipment_request(case)
+                        ).from_(gateway)
+                    self.assertEqual(request.call_count, 1)
+                    url = request.call_args[1]["url"]
+                    self.assertEqual(
+                        harness.strip_query(url),
+                        f"{harness.SANDBOX_ORIGIN}/rest/shipment/v3/edi/labels/pdf",
+                    )
+                    harness.check_url(url)
+                    body = json.loads(request.call_args[1]["data"])
+                    harness.check_booking_body(url, json.dumps(body))
+                    self.assertEqual(self.p8.party_phones(body), phones)
+                    entry = body["shipment"][0]
+                    self.assertEqual(entry["service"]["basicServiceCode"], service_code)
+                    self.assertEqual(
+                        entry["service"].get("additionalServiceCode") or [], addons
+                    )
+                    parties = entry["parties"]
+                    for role in self.p8.PARTIES:
+                        contact = parties[role]["party"]["contact"]
+                        self.assertTrue(contact["emailAddress"])
+                        self.assertEqual(
+                            parties[role]["party"]["address"]["countryCode"], "SE"
+                        )
+                    self.assertNotIn("customsDeclarationCN23", entry)
