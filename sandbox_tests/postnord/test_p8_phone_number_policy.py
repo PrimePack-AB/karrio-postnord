@@ -121,8 +121,11 @@ def party_phones(body: typing.Mapping[str, typing.Any]) -> typing.Dict[str, bool
 
 def mapped_body(gateway, case: Case) -> typing.Dict[str, typing.Any]:
     """The booking body the connector maps for ``case``, without sending it."""
-    return lib.to_dict(
-        gateway.mapper.create_shipment_request(shipment_request(case)).serialize()
+    return typing.cast(
+        typing.Dict[str, typing.Any],
+        lib.to_dict(
+            gateway.mapper.create_shipment_request(shipment_request(case)).serialize()
+        ),
     )
 
 
