@@ -44,6 +44,18 @@ class NotificationChannel(lib.StrEnum):
     letter = "A2"
 
 
+class PhoneNumberPolicy(lib.StrEnum):
+    """``postnord_phone_number_policy`` values for the booking's party phones.
+
+    ``always`` sends each party's phone number. ``omit_when_email_suffices``
+    drops a party's ``phoneNo`` and ``smsNo`` when the party has an email and
+    no booked service needs its phone (see CONSIGNEE_PHONE_SERVICES).
+    """
+
+    always = "always"
+    omit_when_email_suffices = "omit_when_email_suffices"
+
+
 # postnord_default_notification presets released in 2026.10.4, accepted as the
 # channel orders they named.
 LEGACY_NOTIFICATION_PRESETS: typing.Dict[str, typing.Tuple[str, ...]] = {
@@ -97,6 +109,13 @@ class ConnectionConfig(lib.Enum):
     # NotificationChannel names. Unset rejects such a request.
     postnord_default_notification = lib.OptionEnum(
         "postnord_default_notification", typing.List[NotificationChannel]
+    )
+
+    # Connection default for which party phone numbers the shipment booking
+    # sends; overridden per shipment by the options key of the same name.
+    # Unset or unknown resolves to PhoneNumberPolicy.always.
+    postnord_phone_number_policy = lib.OptionEnum(
+        "postnord_phone_number_policy", PhoneNumberPolicy
     )
 
 
@@ -250,6 +269,33 @@ NORDIC_COUNTRIES = frozenset({"SE", "DK", "NO", "FI"})
 
 NOTIFICATION_CONTACTS: typing.Dict[str, str] = {"A3": "phone_number", "A4": "email"}
 NOTIFICATION_DEFAULTED = "postnord_notification_defaulted"
+
+# Additional services that reach the consignee by phone: SMS (A3), phone
+# notification (A9) and driver notification (B8). Booking one keeps the
+# consignee phone under PhoneNumberPolicy.omit_when_email_suffices.
+CONSIGNEE_PHONE_SERVICES = frozenset(
+    {
+        ShippingOption.postnord_notify_by_sms.value.code,
+        ShippingOption.postnord_notify_by_phone.value.code,
+        ShippingOption.postnord_driver_notification.value.code,
+    }
+)
+
+
+def phone_number_policy(requested: typing.Any, configured: typing.Any) -> PhoneNumberPolicy:
+    """Resolve ``postnord_phone_number_policy``: request option, else connection.
+
+    A blank request value falls back to the connection config; an unset or
+    unknown result resolves to ``always``, which sends every phone number.
+    """
+    unset = requested is None or (isinstance(requested, str) and not requested.strip())
+    value = configured if unset else requested
+    name = value.strip() if isinstance(value, str) else None
+    return (
+        PhoneNumberPolicy[name]
+        if name in PhoneNumberPolicy.__members__
+        else PhoneNumberPolicy.always
+    )
 
 
 def required_notification_codes(

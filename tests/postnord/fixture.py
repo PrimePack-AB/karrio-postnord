@@ -191,3 +191,11 @@ def gateway_with_default_notification(channels):
     return karrio.gateway["postnord"].create(
         dict(_settings, config=dict(postnord_default_notification=channels))
     )
+
+
+# Phone number policy gateway: the connection's postnord_phone_number_policy,
+# overridden per shipment by the options key of the same name.
+def gateway_with_phone_number_policy(policy):
+    return karrio.gateway["postnord"].create(
+        dict(_settings, config=dict(postnord_phone_number_policy=policy))
+    )
