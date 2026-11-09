@@ -55,6 +55,23 @@ Because the invoice is also composed into the label printout, the standalone doc
 For letter services and International Parcel (91), no standalone document is fetched unless the `postnord_standalone_customs_documents` opt-in is set (per shipment in `options`, else the connection config); with the opt-in, the standalone declaration — CN22 for letters, CN23 for 91 — is attached in addition to the label, identically for PDF and ZPL.
 A failed fetch never fails the booking; it surfaces as a message.
 
+## Party phone numbers
+
+PostNord's parcel labels print a "Phone:" field for the sender and the recipient, filled from the booking parties' contact phone numbers.
+The `postnord_phone_number_policy` option, set on the connection config and overridable per shipment in `options`, controls whether those numbers are sent.
+The default `always` sends every party's phone number, as before the option existed.
+With `omit_when_email_suffices`, the connector leaves both `phoneNo` and `smsNo` off a consignor or consignee that has an e-mail address, unless the booking needs that party's phone; a party without an e-mail address always keeps its phone.
+
+A party's phone is needed when the basic service requires it or, for the consignee, when a booked additional service reaches the consignee by phone:
+
+- Parcel (18) requires the consignee phone.
+- Return Pickup (20) requires SMS contact data on both parties.
+- Return (24) requires e-mail and SMS on the return part; PostNord does not name which party that is, so both phones are kept as the safe reading.
+- SMS notification (A3), phone notification (A9), and driver notification (B8) keep the consignee phone, including an A3 booked by `postnord_default_notification` for MyPack Collect (19).
+
+The rule relies on the connector's model of which services need a phone (`PRODUCT_PHONE_PARTIES` and `CONSIGNEE_PHONE_SERVICES` in `karrio/providers/postnord/units.py`), not on a PostNord validation, so a product requirement missing from that model is not protected.
+Customs invoice seller and buyer contacts always keep their phone numbers, so customs forms still print them, and pickup bookings keep the pickup party's phone.
+
 ## Entry code
 
 The `entry_code` shipment option carries a recipient building's door code.
