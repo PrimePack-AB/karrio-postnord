@@ -283,7 +283,6 @@ CONSIGNEE_PHONE_SERVICES = frozenset(
 )
 
 
-
 class PartyRole(lib.StrEnum):
     """Booking parties whose contact data a product rule can require."""
 
