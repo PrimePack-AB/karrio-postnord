@@ -14,7 +14,7 @@
 - A git+https SDK install cannot replace the checkout: pip recursively fetches the monorepo's private submodules that modules/sdk does not need
 
 ## Pyright baseline
-- 1064 errors as of 2026-10-13, pre-existing and inherited from the fork tree (dominated by the generated schemas); CI runs the unittest suite only. Cleanup is a separate task — do not gate feature work on it, and do not add new errors
+- 420 errors as of 2026-11-09 (1064 recorded on 2026-10-13), pre-existing and inherited from the fork tree (dominated by the generated schemas); CI runs the unittest suite only. Cleanup is a separate task — do not gate feature work on it, and do not add new errors
 
 ## Evidence and redaction rules
 - Credential VALUES never appear in notes, docs, commits, or output: no `POSTNORD_LIVE_*` or apikey values anywhere (env variable NAMES in prose are fine). Repo-root `.env` holds sandbox-only credentials and is gitignored, with tracked `.env.example` documenting its variable names; live keys remain only in the fork, and `.env` is never printed
