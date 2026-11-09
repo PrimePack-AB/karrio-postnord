@@ -74,6 +74,7 @@ class FixtureSpec:
     description: str
     notes: str = ""
     void: bool = False
+    probe_note: str = ""
 
 
 ROUND_ONE = "20261019T120300Z"
@@ -83,6 +84,8 @@ ROUND_FIVE = "20261019T121021Z"
 ROUND_FOUR = "20261019T121054Z"
 ROUND_SIX = "20261026T101429Z"
 ROUND_SEVEN = "20261026T104757Z"
+ROUND_EIGHT = "20261109T111647Z"
+PHONE_POLICY_NOTE = "docs/notes/sandbox/phone-number-policy-sandbox-probe.md"
 
 CATALOG: typing.Tuple[FixtureSpec, ...] = (
     FixtureSpec(
@@ -304,6 +307,70 @@ CATALOG: typing.Tuple[FixtureSpec, ...] = (
             "3.5.29.1 lists, and PostNord accepted it without a fault."
         ),
     ),
+    FixtureSpec(
+        fixture="p8-phone-policy-17-always.response.json",
+        kind="response.parsed",
+        segment="p8_phone_policy_17_always",
+        run=ROUND_EIGHT,
+        capture="001-p8_phone_policy_17_always.response.parsed.json",
+        description=(
+            "a domestic SE to SE PDF booking through the connector, "
+            "MyPack Home (17) with C7 under phone number policy always: both parties sent phoneNo and smsNo;"
+            " accepted, bookingId, item id, and printId allocated, "
+            "printoutComposition {label: 1}, and one SAE-BR-25062401 "
+            "\"Invalid Customer Number for Application Id\" fault in "
+            "RuleAction LOG_MODE (no applicationId was sent)."
+        ),
+        probe_note=PHONE_POLICY_NOTE,
+    ),
+    FixtureSpec(
+        fixture="p8-phone-policy-17-omit.response.json",
+        kind="response.parsed",
+        segment="p8_phone_policy_17_omit",
+        run=ROUND_EIGHT,
+        capture="003-p8_phone_policy_17_omit.response.parsed.json",
+        description=(
+            "a domestic SE to SE PDF booking through the connector, "
+            "MyPack Home (17) with C7 under omit_when_email_suffices: neither party sent phoneNo or smsNo;"
+            " accepted, bookingId, item id, and printId allocated, "
+            "printoutComposition {label: 1}, and one SAE-BR-25062401 "
+            "\"Invalid Customer Number for Application Id\" fault in "
+            "RuleAction LOG_MODE (no applicationId was sent)."
+        ),
+        probe_note=PHONE_POLICY_NOTE,
+    ),
+    FixtureSpec(
+        fixture="p8-phone-policy-18-omit.response.json",
+        kind="response.parsed",
+        segment="p8_phone_policy_18_omit",
+        run=ROUND_EIGHT,
+        capture="005-p8_phone_policy_18_omit.response.parsed.json",
+        description=(
+            "a domestic SE to SE PDF booking through the connector, "
+            "Parcel (18) under omit_when_email_suffices: the consignee sent phoneNo and smsNo, the consignor neither;"
+            " accepted, bookingId, item id, and printId allocated, "
+            "printoutComposition {label: 1}, and one SAE-BR-25062401 "
+            "\"Invalid Customer Number for Application Id\" fault in "
+            "RuleAction LOG_MODE (no applicationId was sent)."
+        ),
+        probe_note=PHONE_POLICY_NOTE,
+    ),
+    FixtureSpec(
+        fixture="p8-phone-policy-18-no-consignee-phone.response.json",
+        kind="response.parsed",
+        segment="p8_phone_policy_18_no_consignee_phone",
+        run=ROUND_EIGHT,
+        capture="007-p8_phone_policy_18_no_consignee_phone.response.parsed.json",
+        description=(
+            "a domestic SE to SE PDF booking through the connector, "
+            "Parcel (18) under always with the consignee's phone left out (e-mail kept): the consignor sent phoneNo and smsNo, the consignee neither;"
+            " accepted, bookingId, item id, and printId allocated, "
+            "printoutComposition {label: 1}, and one SAE-BR-25062401 "
+            "\"Invalid Customer Number for Application Id\" fault in "
+            "RuleAction LOG_MODE (no applicationId was sent)."
+        ),
+        probe_note=PHONE_POLICY_NOTE,
+    ),
 )
 
 
@@ -440,6 +507,8 @@ def manifest_entry(spec: FixtureSpec, raw: bytes, written: bytes) -> Json:
     )
     if spec.void:
         entry["void"] = True
+    if spec.probe_note:
+        entry["probe_note"] = spec.probe_note
     if spec.kind == "printout":
         pages, page_size_pt = page_geometry(raw)
         entry["pages"] = pages

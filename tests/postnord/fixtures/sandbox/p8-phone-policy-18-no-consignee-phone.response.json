@@ -1,0 +1,104 @@
+{
+ "transport": "response",
+ "body": {
+  "bookingResponse": {
+   "bookingId": "ILPN0010M426XENRWIEAUTYDRHGDLN",
+   "idInformation": [
+    {
+     "status": "OK",
+     "references": {
+      "item": [],
+      "shipment": [
+       {
+        "referenceType": "IL",
+        "referenceNo": "ILPN0010M426XENRWIEAUTYDRHGDLN"
+       }
+      ]
+     },
+     "ids": [
+      {
+       "idType": "itemId",
+       "value": "00173215400196730568",
+       "printId": "0406b71cf080448585d201434be27152"
+      }
+     ],
+     "urls": [
+      {
+       "type": "TRACKING",
+       "url": "https://attracking.postnord.com/se/"
+      }
+     ],
+     "errorResponse": {
+      "message": "General client indata error in LOG mode, soon to be activated",
+      "compositeFault": {
+       "faults": [
+        {
+         "explanationText": "Invalid Customer Number for Application Id",
+         "faultCode": "SAE-BR-25062401",
+         "faultReferences": [
+          {
+           "key": "CustomerOriginValidationError.type",
+           "value": "CUSTOMER_NO_FAULTY"
+          },
+          {
+           "key": "RuleAction",
+           "value": "LOG_MODE"
+          },
+          {
+           "key": "shipment[0].shipmentIdentification.shipmentId",
+           "value": "P8-18-NO-CONSIGNEE-PHONE"
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "labelPrintout": [
+   {
+    "itemIds": [
+     {
+      "itemIds": "00173215400196730568",
+      "printId": "0406b71cf080448585d201434be27152",
+      "basicServiceCode": "18",
+      "status": "OK",
+      "reference": {
+       "item": [],
+       "shipment": []
+      }
+     }
+    ],
+    "printout": {
+     "labelFormat": "PDF",
+     "encoding": "base64",
+     "data": {
+      "omitted": "printout data stored as raw bytes alongside",
+      "file": "007-p8_phone_policy_18_no_consignee_phone.printout01.pdf",
+      "files": [
+       "007-p8_phone_policy_18_no_consignee_phone.printout01.pdf"
+      ],
+      "sha256": [
+       "7541e14a9704b98c83aabb66677046504f883db66d522f438514c212c1dcd8de"
+      ]
+     },
+     "type": "LABEL"
+    },
+    "printoutComposition": {
+     "cn23": 0,
+     "label": 1,
+     "cn22": 0,
+     "securityDeclarations": 0,
+     "customsInvoice": 0,
+     "loadList": 0,
+     "dpc": 0,
+     "dangerousGoods": 0,
+     "fraktsedel": 0,
+     "routingDocument": 0,
+     "datametrixbarcode": 0
+    }
+   }
+  ]
+ }
+}

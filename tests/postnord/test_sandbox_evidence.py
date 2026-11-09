@@ -1,14 +1,15 @@
 """Offline checks on the sandbox evidence fixtures.
 
-The fixtures back the sandbox citations in the probe note
-(docs/notes/sandbox/cn23-composition-sandbox-probe.md): each is a copy
+The fixtures back the sandbox citations in the probe notes
+(docs/notes/sandbox/cn23-composition-sandbox-probe.md, and for P8
+docs/notes/sandbox/phone-number-policy-sandbox-probe.md): each is a copy
 of a capture file named by the manifest, byte-identical except where the
 customer number or application id was replaced by its placeholder. The
 responses and the manifest are committed under fixtures/sandbox/; the
 printouts are PostNord content and stay in the local fixture directory
 (``local_fixtures``), so the checks that read them skip without it. These
 tests pin that identity through the manifest's recorded sha256 values,
-tie the manifest's source shas back to the note's capture table, and
+tie the manifest's source shas back to the notes' capture tables, and
 keep every fixture free of apikey-shaped runs using the sandbox harness
 redactor's exemption semantics, mirrored here so the offline suite
 stands alone of sandbox_tests.
@@ -27,13 +28,9 @@ from postnord import local_fixtures
 FIXTURES_ROOT = pathlib.Path(__file__).parent / "fixtures"
 FIXTURE_DIR = FIXTURES_ROOT / "sandbox"
 MANIFEST_PATH = FIXTURE_DIR / "manifest.json"
-PROBE_NOTE = (
-    pathlib.Path(__file__).resolve().parents[2]
-    / "docs"
-    / "notes"
-    / "sandbox"
-    / "cn23-composition-sandbox-probe.md"
-)
+NOTES_DIR = pathlib.Path(__file__).resolve().parents[2] / "docs" / "notes" / "sandbox"
+PROBE_NOTE = NOTES_DIR / "cn23-composition-sandbox-probe.md"
+PROBE_NOTES = (PROBE_NOTE, NOTES_DIR / "phone-number-policy-sandbox-probe.md")
 NOTE_ROW = re.compile(
     r"^\| (\d{8}T\d{6}Z) \| `([^`]+)` \| `([0-9a-f]{64})` \|$", re.MULTILINE
 )
@@ -71,6 +68,10 @@ EXPECTED_SEGMENTS = {
     "p7_label_size_small_pdf": {"response.parsed"},
     "p7_label_size_ste_pdf": {"response.parsed"},
     "p7_label_size_ste_zpl": {"response.parsed"},
+    "p8_phone_policy_17_always": {"response.parsed"},
+    "p8_phone_policy_17_omit": {"response.parsed"},
+    "p8_phone_policy_18_omit": {"response.parsed"},
+    "p8_phone_policy_18_no_consignee_phone": {"response.parsed"},
 }
 
 
@@ -86,10 +87,11 @@ def fixture_path(entry: dict) -> pathlib.Path:
 
 
 def note_capture_table() -> typing.Dict[typing.Tuple[str, str], str]:
-    """The note's capture table as {(run, file): sha256}."""
+    """The probe notes' capture tables as {(run, file): sha256}."""
     return {
         (run, file): sha
-        for run, file, sha in NOTE_ROW.findall(PROBE_NOTE.read_text())
+        for note in PROBE_NOTES
+        for run, file, sha in NOTE_ROW.findall(note.read_text())
     }
 
 
@@ -152,6 +154,12 @@ class TestSandboxEvidenceManifest(unittest.TestCase):
         self.assertTrue(pathlib.Path(document["probe_note"]).is_file())
         self.assertIn("karrio-postnord/sandbox", document["capture_root"])
         self.assertTrue(document["redaction_policy"])
+        for entry in document["fixtures"]:
+            if "probe_note" in entry:
+                with self.subTest(fixture=entry["fixture"]):
+                    self.assertTrue(
+                        (NOTES_DIR.parents[2] / entry["probe_note"]).is_file()
+                    )
 
     def _assert_recorded_shas(self, entries: typing.List[dict]):
         for entry in entries:
@@ -184,7 +192,7 @@ class TestSandboxEvidenceManifest(unittest.TestCase):
                 self.assertEqual(entry["source_sha256"], table[source])
                 pinned += 1
         # every byte-identical fixture, the printouts included, is pinned
-        self.assertEqual(pinned, 12)
+        self.assertEqual(pinned, 16)
 
     def test_redacted_fixtures_record_no_source_digest(self):
         table = note_capture_table()
@@ -371,6 +379,45 @@ class TestSandboxEvidenceSecrets(unittest.TestCase):
                 data = printout["printout"]["data"]
                 self.assertIn("omitted", data)
                 self.assertRegex(data["sha256"][0], r"^[0-9a-f]{64}$")
+
+    def test_the_p8_phone_policy_bookings_are_accepted_labels(self):
+        cases = {
+            "p8-phone-policy-17-always.response.json": "17",
+            "p8-phone-policy-17-omit.response.json": "17",
+            "p8-phone-policy-18-omit.response.json": "18",
+            "p8-phone-policy-18-no-consignee-phone.response.json": "18",
+        }
+        entries = {e["fixture"]: e for e in manifest()["fixtures"]}
+        for fixture, service in cases.items():
+            with self.subTest(fixture=fixture):
+                entry = entries[fixture]
+                self.assertTrue(entry["byte_identical"])
+                self.assertTrue(
+                    entry["probe_note"].endswith("phone-number-policy-sandbox-probe.md")
+                )
+                body = json.loads((FIXTURE_DIR / fixture).read_text())["body"]
+                (information,) = body["bookingResponse"]["idInformation"]
+                self.assertEqual(information["status"], "OK")
+                (assigned,) = information["ids"]
+                self.assertEqual(assigned["idType"], "itemId")
+                self.assertRegex(assigned["printId"], r"^[0-9a-f]{32}$")
+                faults = information["errorResponse"]["compositeFault"]["faults"]
+                self.assertEqual(
+                    [fault["faultCode"] for fault in faults], ["SAE-BR-25062401"]
+                )
+                (printout,) = body["labelPrintout"]
+                self.assertEqual(printout["itemIds"][0]["basicServiceCode"], service)
+                composition = {
+                    kind: count
+                    for kind, count in printout["printoutComposition"].items()
+                    if count
+                }
+                self.assertEqual(composition, {"label": 1})
+                self.assertEqual(printout["printout"]["labelFormat"], "PDF")
+                data = printout["printout"]["data"]
+                self.assertIn("omitted", data)
+                self.assertRegex(data["sha256"][0], r"^[0-9a-f]{64}$")
+                self.assertNotIn("SAO-HR-25060301", json.dumps(body))
 
 
 if __name__ == "__main__":

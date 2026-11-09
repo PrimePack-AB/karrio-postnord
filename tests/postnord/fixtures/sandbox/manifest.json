@@ -196,6 +196,62 @@
    "byte_identical": true,
    "description": "the p1 booking shape (91 SE to AL, mapper-built customsDeclarationCN23) in ZPL on a connection with label_size ste, sent as labelType=ste to /rest/shipment/v3/edi/labels/zpl: accepted, bookingId, item id, and printId allocated, printoutComposition {cn23: 1, label: 1}, no labelType echoed. ste is not among the ZPL labelType values Booking APIs 3.5.29.1 lists, and PostNord accepted it without a fault.",
    "notes": null
+  },
+  {
+   "fixture": "p8-phone-policy-17-always.response.json",
+   "kind": "response.parsed",
+   "segment": "p8_phone_policy_17_always",
+   "source_run": "20261109T111647Z",
+   "source_file": "001-p8_phone_policy_17_always.response.parsed.json",
+   "source_path": "20261109T111647Z/001-p8_phone_policy_17_always.response.parsed.json",
+   "source_sha256": "60aaa9f81c946193dcbde312153f26b1561bb71b0da855c724fab1cdf083b233",
+   "sha256": "60aaa9f81c946193dcbde312153f26b1561bb71b0da855c724fab1cdf083b233",
+   "byte_identical": true,
+   "description": "a domestic SE to SE PDF booking through the connector, MyPack Home (17) with C7 under phone number policy always: both parties sent phoneNo and smsNo; accepted, bookingId, item id, and printId allocated, printoutComposition {label: 1}, and one SAE-BR-25062401 \"Invalid Customer Number for Application Id\" fault in RuleAction LOG_MODE (no applicationId was sent).",
+   "notes": null,
+   "probe_note": "docs/notes/sandbox/phone-number-policy-sandbox-probe.md"
+  },
+  {
+   "fixture": "p8-phone-policy-17-omit.response.json",
+   "kind": "response.parsed",
+   "segment": "p8_phone_policy_17_omit",
+   "source_run": "20261109T111647Z",
+   "source_file": "003-p8_phone_policy_17_omit.response.parsed.json",
+   "source_path": "20261109T111647Z/003-p8_phone_policy_17_omit.response.parsed.json",
+   "source_sha256": "f3d0c61df4eb02554336b266704e16c27476e08718af931d3544ca0821339a05",
+   "sha256": "f3d0c61df4eb02554336b266704e16c27476e08718af931d3544ca0821339a05",
+   "byte_identical": true,
+   "description": "a domestic SE to SE PDF booking through the connector, MyPack Home (17) with C7 under omit_when_email_suffices: neither party sent phoneNo or smsNo; accepted, bookingId, item id, and printId allocated, printoutComposition {label: 1}, and one SAE-BR-25062401 \"Invalid Customer Number for Application Id\" fault in RuleAction LOG_MODE (no applicationId was sent).",
+   "notes": null,
+   "probe_note": "docs/notes/sandbox/phone-number-policy-sandbox-probe.md"
+  },
+  {
+   "fixture": "p8-phone-policy-18-omit.response.json",
+   "kind": "response.parsed",
+   "segment": "p8_phone_policy_18_omit",
+   "source_run": "20261109T111647Z",
+   "source_file": "005-p8_phone_policy_18_omit.response.parsed.json",
+   "source_path": "20261109T111647Z/005-p8_phone_policy_18_omit.response.parsed.json",
+   "source_sha256": "14bc0ca547d19e7c89a3395894946092fd8577cd41aac51a8655a51a24f3233a",
+   "sha256": "14bc0ca547d19e7c89a3395894946092fd8577cd41aac51a8655a51a24f3233a",
+   "byte_identical": true,
+   "description": "a domestic SE to SE PDF booking through the connector, Parcel (18) under omit_when_email_suffices: the consignee sent phoneNo and smsNo, the consignor neither; accepted, bookingId, item id, and printId allocated, printoutComposition {label: 1}, and one SAE-BR-25062401 \"Invalid Customer Number for Application Id\" fault in RuleAction LOG_MODE (no applicationId was sent).",
+   "notes": null,
+   "probe_note": "docs/notes/sandbox/phone-number-policy-sandbox-probe.md"
+  },
+  {
+   "fixture": "p8-phone-policy-18-no-consignee-phone.response.json",
+   "kind": "response.parsed",
+   "segment": "p8_phone_policy_18_no_consignee_phone",
+   "source_run": "20261109T111647Z",
+   "source_file": "007-p8_phone_policy_18_no_consignee_phone.response.parsed.json",
+   "source_path": "20261109T111647Z/007-p8_phone_policy_18_no_consignee_phone.response.parsed.json",
+   "source_sha256": "68b8518a4a56bb60bbf0cdf97edf6af40f15b20445069ef16520e2b633b3cbbd",
+   "sha256": "68b8518a4a56bb60bbf0cdf97edf6af40f15b20445069ef16520e2b633b3cbbd",
+   "byte_identical": true,
+   "description": "a domestic SE to SE PDF booking through the connector, Parcel (18) under always with the consignee's phone left out (e-mail kept): the consignor sent phoneNo and smsNo, the consignee neither; accepted, bookingId, item id, and printId allocated, printoutComposition {label: 1}, and one SAE-BR-25062401 \"Invalid Customer Number for Application Id\" fault in RuleAction LOG_MODE (no applicationId was sent).",
+   "notes": null,
+   "probe_note": "docs/notes/sandbox/phone-number-policy-sandbox-probe.md"
   }
  ]
 }
