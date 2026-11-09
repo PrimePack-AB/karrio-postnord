@@ -994,6 +994,21 @@ def shipment_request(
     if notification_defaulted:
         additional_service_codes.append(notification_defaulted)
 
+    # Decided from the complete code list, after the service-point A7 and the
+    # defaulted notification are appended; the address models keep their
+    # phones so the notification and customs invoice checks still see them.
+    omit_phones_email_covers = (
+        provider_units.phone_number_policy(
+            (payload.options or {}).get("postnord_phone_number_policy"),
+            settings.connection_config.postnord_phone_number_policy.state,
+        )
+        == provider_units.PhoneNumberPolicy.omit_when_email_suffices
+    )
+    consignee_phone_needed = any(
+        code in provider_units.CONSIGNEE_PHONE_SERVICES
+        for code in additional_service_codes
+    )
+
     # Booking locale: request options.language > connection config language >
     # recipient country (when config locale_by_recipient is enabled) > "en".
     # Sent lowercase as the query `locale` (SMS/Email language) and uppercased
@@ -1107,7 +1122,14 @@ def shipment_request(
         else None
     )
 
-    def _party(address, *, with_consignor_id: bool) -> postnord_req.ConsigneeType:
+    def _party(
+        address, *, with_consignor_id: bool, phone_needed: bool
+    ) -> postnord_req.ConsigneeType:
+        phone_number = lib.identity(
+            None
+            if omit_phones_email_covers and address.email and not phone_needed
+            else address.phone_number
+        )
         return postnord_req.ConsigneeType(
             issuerCode=settings.issuer_code,
             partyIdentification=lib.identity(
@@ -1133,8 +1155,8 @@ def shipment_request(
                 contact=postnord_req.ContactType(
                     contactName=address.person_name,
                     emailAddress=address.email,
-                    phoneNo=address.phone_number,
-                    smsNo=address.phone_number,
+                    phoneNo=phone_number,
+                    smsNo=phone_number,
                 ),
             ),
         )
@@ -1172,8 +1194,14 @@ def shipment_request(
                     else []
                 ),
                 parties=postnord_req.PartiesType(
-                    consignor=_party(shipper, with_consignor_id=True),
-                    consignee=_party(recipient, with_consignor_id=False),
+                    consignor=_party(
+                        shipper, with_consignor_id=True, phone_needed=False
+                    ),
+                    consignee=_party(
+                        recipient,
+                        with_consignor_id=False,
+                        phone_needed=consignee_phone_needed,
+                    ),
                     deliveryParty=lib.identity(
                         _delivery_party(service_point) if service_point else None
                     ),
