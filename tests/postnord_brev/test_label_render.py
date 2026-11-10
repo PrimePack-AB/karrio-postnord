@@ -1,6 +1,7 @@
 """PostNord Brev label template rendering tests."""
 
 import unittest
+import xml.etree.ElementTree as ET
 
 import karrio.core.models as models
 
@@ -46,6 +47,8 @@ class TestBrevLabelRender(unittest.TestCase):
         self.assertIn("@page { size: 100mm 180mm; margin: 0; }", svg)
         for label_text in ("Avsändare", "Kundnummer", "Vikt", "Datum"):
             self.assertIn(label_text, svg)
+        root = ET.fromstring(svg)
+        self.assertEqual(root.tag, "{http://www.w3.org/2000/svg}svg")
 
     def test_renders_customer_number_parties_weight_and_asset(self):
         svg = self.render()

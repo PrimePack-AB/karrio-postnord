@@ -1,14 +1,14 @@
-<style type="text/css">
-  @page { size: 100mm 180mm; margin: 0; }
-</style>
 {#- PostNord Brev (port payé) First Class label: Swedish-fixed, PART 1 only;
     the lower canvas stays clear for PostNord's sorting-code zone. Context:
     shipment, customer_number, weight_grams, franking_asset_href, ship_date,
-    stamp. Ported from the engine template per the design note. -#}
+    shipper_contact, stamp. Ported from the engine template per the design note. -#}
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 180" width="100mm" height="180mm"
      preserveAspectRatio="xMinYMin"
      font-family="'Arial Narrow', 'Liberation Sans Narrow', 'Roboto Condensed', Arial, Helvetica, sans-serif"
      style="font-stretch: condensed;">
+  <style type="text/css">
+    @page { size: 100mm 180mm; margin: 0; }
+  </style>
 {%- set s = shipment.shipper -%}
 {%- set r = shipment.recipient -%}
 {%- set sender_lines = [
