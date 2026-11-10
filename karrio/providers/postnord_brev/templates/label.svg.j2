@@ -1,0 +1,72 @@
+<style type="text/css">
+  @page { size: 100mm 180mm; margin: 0; }
+</style>
+{#- PostNord Brev (port payé) First Class label: Swedish-fixed, PART 1 only;
+    the lower canvas stays clear for PostNord's sorting-code zone. Context:
+    shipment, customer_number, weight_grams, franking_asset_href, ship_date,
+    stamp. Ported from the engine template per the design note. -#}
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 180" width="100mm" height="180mm"
+     preserveAspectRatio="xMinYMin"
+     font-family="'Arial Narrow', 'Liberation Sans Narrow', 'Roboto Condensed', Arial, Helvetica, sans-serif"
+     style="font-stretch: condensed;">
+{%- set s = shipment.shipper -%}
+{%- set r = shipment.recipient -%}
+{%- set sender_lines = [
+      s.company_name or s.person_name,
+      ((s.address_line1 or '') ~ (' ' ~ s.street_number if s.street_number else '')) | trim,
+      s.address_line2,
+      ((s.postal_code or '') ~ ' ' ~ ((s.city or '') | upper)) | trim
+    ] | select | list -%}
+{%- set recipient_lines = [
+      r.company_name,
+      r.person_name,
+      ((r.address_line1 or '') ~ (' ' ~ r.street_number if r.street_number else '') ~ (', ' ~ r.address_line2 if r.address_line2 else '')) | trim,
+      ((r.postal_code or '') ~ ' ' ~ ((r.city or '') | upper)) | trim,
+      (r.country_code if r.country_code and r.country_code != s.country_code else None)
+    ] | select | list %}
+  <g id="part-1" transform="translate(0 0)" fill="#000">
+
+    <!-- Sender -->
+    <text x="5" y="9.6" font-size="1.94">Avsändare</text>
+    {% for line in sender_lines %}
+    <text x="5" y="{{ 12.1 + loop.index0 * 2.45 }}" font-size="2.12" font-weight="bold">{{ line }}</text>
+    {% endfor %}
+
+    <!-- Shipper contact (email, phone per policy) -->
+    {% if shipper_contact %}
+    <text x="5" y="19.6" font-size="1.94">{{ shipper_contact }}</text>
+    {% endif %}
+
+    <!-- Franking asset (port payé kliché) as inline data URI: 32 x 18 mm, right-aligned -->
+    <image href="{{ franking_asset_href }}" x="64" y="6" width="32" height="18" preserveAspectRatio="xMaxYMin meet"/>
+
+    <!-- Customer number -->
+    <text x="38" y="22.6" font-size="1.94">Kundnummer</text>
+    <text x="38" y="25.2" font-size="2.82" font-weight="bold">{{ customer_number }}</text>
+
+    <!-- Engine line -->
+    <text x="94" y="27.3" font-size="1.76" font-weight="bold" text-anchor="end">PrimePack{% if stamp %} – {{ stamp }}{% endif %}</text>
+
+    <!-- Address window corners -->
+    <g fill="none" stroke="#000" stroke-width="1">
+      <path d="M4.1 34 V28.5 H9.6"/>
+      <path d="M88.6 28.5 H94.1 V34"/>
+      <path d="M4.1 57.5 V63 H9.6"/>
+      <path d="M88.6 63 H94.1 V57.5"/>
+    </g>
+
+    <!-- Vertical tagline (reads top to bottom) -->
+    <text transform="translate(95.6 33) rotate(90)" font-size="1.76" font-weight="bold">Fix your Ship — Shipify AB</text>
+
+    <!-- Recipient -->
+    {% for line in recipient_lines %}
+    <text x="11" y="{{ 42.4 + loop.index0 * 4.7 }}" font-size="4.23" font-weight="bold">{{ line }}</text>
+    {% endfor %}
+
+    <!-- Weight / date -->
+    <text x="5" y="69.4" font-size="1.94">Vikt</text>
+    <text x="5" y="71.8" font-size="2.3" font-weight="bold">{{ weight_grams }} g</text>
+    <text x="95" y="69.4" font-size="1.94" text-anchor="end">Datum</text>
+    <text x="95" y="71.8" font-size="2.3" font-weight="bold" text-anchor="end">{{ ship_date }}</text>
+  </g>
+</svg>
