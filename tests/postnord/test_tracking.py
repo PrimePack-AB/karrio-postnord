@@ -47,6 +47,36 @@ class TestPostNordTracking(unittest.TestCase):
                 lib.to_dict(parsed_response), ParsedInTransitResponse
             )
 
+    def test_parse_pre_scan_statuses_as_pending(self):
+        for item_status in ["CREATED", "INFORMED"]:
+            with self.subTest(item_status=item_status), patch(
+                "karrio.mappers.postnord.proxy.lib.request"
+            ) as mock:
+                mock.return_value = pre_scan_response(item_status)
+                details, messages = (
+                    karrio.Tracking.fetch(self.TrackingRequest).from_(gateway).parse()
+                )
+                self.assertEqual(
+                    [(d.status, d.delivered) for d in details], [("pending", False)]
+                )
+                self.assertEqual(messages, [])
+                self.assertEqual([e.code for e in details[0].events], ["A01"])
+
+    def test_parse_no_tracking_data_as_pending(self):
+        for body in ["{}", '{"TrackingInformationResponse": {"shipments": []}}']:
+            with self.subTest(body=body), patch(
+                "karrio.mappers.postnord.proxy.lib.request"
+            ) as mock:
+                mock.return_value = body
+                details, messages = (
+                    karrio.Tracking.fetch(self.TrackingRequest).from_(gateway).parse()
+                )
+                self.assertEqual(
+                    [(d.status, d.delivered, d.events) for d in details],
+                    [("pending", False, [])],
+                )
+                self.assertEqual(messages, [])
+
     def test_parse_error_response(self):
         with patch("karrio.mappers.postnord.proxy.lib.request") as mock:
             mock.return_value = ErrorResponse
@@ -169,6 +199,36 @@ InTransitResponse = """{
   }
 }"""
 
+def pre_scan_response(item_status: str) -> str:
+    return lib.to_json(
+        {
+            "TrackingInformationResponse": {
+                "shipments": [
+                    {
+                        "shipmentId": "00373500454541020957",
+                        "status": item_status,
+                        "items": [
+                            {
+                                "itemId": "00373500454541020957",
+                                "status": item_status,
+                                "eventStatus": item_status,
+                                "events": [
+                                    {
+                                        "eventTime": "2026-06-24T08:15:00",
+                                        "eventCode": "A01",
+                                        "eventDescription": "The shipment has been announced",
+                                        "status": item_status,
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+    )
+
+
 ErrorResponse = """{
   "error": {
     "status_code": 403,
@@ -253,7 +313,7 @@ ParsedErrorResponse = [
             "carrier_name": "postnord",
             "tracking_number": "00373500454541020957",
             "delivered": False,
-            "status": "in_transit",
+            "status": "pending",
             "info": {
                 "carrier_tracking_link": "https://tracking.postnord.com/se/?id=00373500454541020957",
             },

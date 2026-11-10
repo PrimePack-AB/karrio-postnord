@@ -10,7 +10,7 @@ PostNord authorizes per product, so the v7 call may return the gateway 403
 envelope (``{"error": {"status_code": 403, ...}}``) when the key is not
 subscribed to T&T. When the response yields no usable item (auth error,
 ``compositeFault``, or no data) the detail degrades to the prior link-only
-behavior: the tracking URL plus a single neutral ``in_transit`` status and an
+behavior: the tracking URL plus a single ``pending`` status and an
 empty event list, so tracking still returns a usable result. Both the
 ``compositeFault`` and the gateway envelope are surfaced as error Messages.
 """
@@ -77,7 +77,7 @@ def _extract_details(
             tracking_number=tracking_number,
             events=[],
             delivered=False,
-            status="in_transit",
+            status=provider_units.TrackingStatus.pending.name,
             info=models.TrackingInfo(carrier_tracking_link=tracking_url),
         )
 

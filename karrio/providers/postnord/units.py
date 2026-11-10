@@ -832,11 +832,13 @@ class TrackingStatus(lib.Enum):
     The v7 ``findByIdentifier`` response carries an ``ItemStatus`` enum on each
     item (``status``/``eventStatus``). These 13 values are normalized to
     ``karrio.core.units.TrackerStatus`` names; unmapped/``OTHER`` values fall
-    back to ``in_transit`` at the call site.
+    back to ``in_transit`` at the call site. ``CREATED`` and ``INFORMED`` precede
+    any carrier scan of the item, so they map to ``pending``.
     """
 
+    pending = ["CREATED", "INFORMED"]
     delivered = ["DELIVERED"]
-    in_transit = ["EN_ROUTE", "INFORMED", "CREATED", "OTHER"]
+    in_transit = ["EN_ROUTE", "OTHER"]
     ready_for_pickup = ["AVAILABLE_FOR_DELIVERY", "AVAILABLE_FOR_DELIVERY_PAR_LOC"]
     delivery_delayed = ["DELAYED", "EXPECTED_DELAY"]
     delivery_failed = ["DELIVERY_IMPOSSIBLE", "DELIVERY_REFUSED"]
