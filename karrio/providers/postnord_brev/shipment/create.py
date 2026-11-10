@@ -40,10 +40,9 @@ def create_shipment(request, settings):
     _guard(payload, settings)
 
     parcel = payload.parcels[0]
-    # PostNord item identifiers are numeric; 10 digits is their width.
-    tracking_number = parcel.reference_number or str(
-        int(uuid.uuid4().hex[:10], 16) % 10**10
-    )
+    # Not a PostNord id: the uuid-derived fallback mirrors the generic
+    # carrier's minting scheme and satisfies ShipmentDetails' identifier.
+    tracking_number = parcel.reference_number or f"{int(uuid.uuid4().hex[:10], 16) % 10**10:010d}"
     customer_number = (payload.metadata or {}).get(
         "postnord_port_paye_customer_number"
     ) or settings.customer_number

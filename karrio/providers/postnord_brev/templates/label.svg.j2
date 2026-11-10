@@ -34,7 +34,7 @@
 
     <!-- Shipper contact (email, phone per policy) -->
     {% if shipper_contact %}
-    <text x="5" y="19.6" font-size="1.94">{{ shipper_contact }}</text>
+    <text x="5" y="{{ 12.1 + (sender_lines | length) * 2.45 }}" font-size="1.94">{{ shipper_contact }}</text>
     {% endif %}
 
     <!-- Franking asset (port payé kliché) as inline data URI: 32 x 18 mm, right-aligned -->

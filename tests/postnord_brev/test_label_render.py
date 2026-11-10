@@ -100,3 +100,39 @@ class TestBrevLabelRender(unittest.TestCase):
             shipper_contact="avsandare@example.se · +46701234567",
         )
         self.assertIn("avsandare@example.se · +46701234567", svg)
+
+    def test_shipper_contact_flows_below_sender_block(self):
+        contact = "avsandare@example.se · +46701234567"
+        # Three sender lines (no address_line2): the contact sits one sender
+        # slot below the last line, at 12.1 + 3 * 2.45 = 19.45.
+        svg = render_label(
+            models.ShipmentRequest(**ShipmentPayload),
+            "20000000",
+            1000,
+            self.href,
+            shipper_contact=contact,
+        )
+        self.assertIn(
+            '<text x="5" y="19.45" font-size="1.94">' + contact + "</text>", svg
+        )
+        # A fourth sender line (address_line2) moves the contact down one
+        # more slot to 12.1 + 4 * 2.45 = 21.9 instead of overlapping the block.
+        payload = {
+            **ShipmentPayload,
+            "shipper": {
+                **ShipmentPayload["shipper"],
+                "address_line2": "Attn: Brevlåda 4",
+                "email": "avsandare@example.se",
+                "phone_number": "+46 70 123 45 67",
+            },
+        }
+        svg = render_label(
+            models.ShipmentRequest(**payload),
+            "20000000",
+            1000,
+            self.href,
+            shipper_contact=contact,
+        )
+        self.assertIn(
+            '<text x="5" y="21.9" font-size="1.94">' + contact + "</text>", svg
+        )

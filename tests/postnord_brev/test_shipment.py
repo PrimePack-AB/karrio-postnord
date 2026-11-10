@@ -63,7 +63,7 @@ class TestBrevCreateShipment(unittest.TestCase):
             "parcels": [dict(weight=1.0, weight_unit="KG")],
         }
         response = _create(payload)
-        self.assertRegex(response.shipment.tracking_number, r"^\d{1,10}$")
+        self.assertRegex(response.shipment.tracking_number, r"^\d{10}$")
 
     def test_customer_number_metadata_overrides_connection(self):
         payload = {**ShipmentPayload, "metadata": {"postnord_port_paye_customer_number": "12345678"}}
