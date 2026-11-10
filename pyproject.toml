@@ -26,6 +26,7 @@ Homepage = "https://github.com/PrimePack-AB/karrio-postnord"
 
 [project.entry-points."karrio.plugins"]
 postnord = "karrio.plugins.postnord:METADATA"
+postnord_brev = "karrio.plugins.postnord_brev:METADATA"
 
 [tool.primepack]
 # The Joaqim/karrio fork snapshot tag each release is tested against.
