@@ -33,7 +33,7 @@ All settled with the product owner on 2026-11-10:
 - Kundnummer resolution: shipment metadata override, else the connection's required `customer_number`; unresolvable is a hard failure.
 - The franking asset is consumer-supplied in v1 (fail-closed when absent); a connector-drawn mark is parked pending PostNord's answer.
 - No tracking, pickup, manifest, or cancel capability.
-- Shipper contact (email, phone) prints under the sender block, mirroring the postnord carrier's `postnord_phone_number_policy` semantics: same option name and values, request-overrides-config, default `always`; `omit_when_email_suffices` drops the phone exactly when an email is present. At least one contact is not mandatory in v1 — the terms require only a complete sender designation (product-owner ruling 2026-11-10; make mandatory if a firmer requirement emerges).
+- Shipper contact (email, phone) prints under the sender block, mirroring the postnord carrier's `postnord_phone_number_policy` semantics: same option name, the values `always` and `omit_when_email_suffices`, request-overrides-config, default `always`; `omit_when_email_suffices` drops the phone exactly when an email is present. At least one contact is not mandatory in v1 — the terms require only a complete sender designation (product-owner ruling 2026-11-10; make mandatory if a firmer requirement emerges).
 - Multi-part label panels are deferred: the fixture below is the minimally viable label.
 
 ## Architecture

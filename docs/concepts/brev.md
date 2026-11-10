@@ -52,6 +52,8 @@ Each guard rejects the shipment with a field-keyed error before any rendering, e
 
 The lane guard is defense-in-depth: the karrio SDK's own origin gate usually catches a non-SE shipper first, because the brev connection's `account_country_code` defaults to `SE`, so end users see the SDK's origin-not-serviced message rather than the carrier's.
 
+Beyond the guards, the label applies no text truncation: over-long sender or recipient lines overflow their areas, and the sender is responsible for fit.
+
 ## Kundnummer on the label
 
 The terms require the kundnummer on the invoice basis (the e-fakturaunderlag/transportsedel), not on the item itself, and no public document requires it on the label.
