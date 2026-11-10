@@ -28,6 +28,9 @@ COLLECT_PAYLOAD = {**ShipmentPayload, "service": "postnord_mypack_collect", "opt
 
 ALWAYS = provider_units.PhoneNumberPolicy.always
 OMIT = provider_units.PhoneNumberPolicy.omit_when_email_suffices
+REQUIRED_ONLY = provider_units.PhoneNumberPolicy.omit_unless_required
+REQUIRED_ONLY_GATEWAY = gateway_with_phone_number_policy("omit_unless_required")
+NO_EMAIL = {"email": None}
 
 
 class TestPhoneNumberPolicyResolution(unittest.TestCase):
@@ -36,7 +39,7 @@ class TestPhoneNumberPolicyResolution(unittest.TestCase):
         self.assertEqual(config["postnord_phone_number_policy"]["type"], "string")
         self.assertEqual(
             config["postnord_phone_number_policy"]["enum"],
-            ["always", "omit_when_email_suffices"],
+            ["always", "omit_when_email_suffices", "omit_unless_required"],
         )
 
     def test_connection_config_reaches_the_settings(self):
@@ -58,6 +61,9 @@ class TestPhoneNumberPolicyResolution(unittest.TestCase):
             ("unknown_request_keeps_phones", "never", "omit_when_email_suffices", ALWAYS),
             ("unknown_config_keeps_phones", None, "never", ALWAYS),
             ("non_string_request_keeps_phones", 3, "omit_when_email_suffices", ALWAYS),
+            ("config_required_only", None, "omit_unless_required", REQUIRED_ONLY),
+            ("request_required_only", "omit_unless_required", "always", REQUIRED_ONLY),
+            ("request_omit_over_required_only", "omit_when_email_suffices", "omit_unless_required", OMIT),
         ]
         for name, requested, configured, expected in cases:
             with self.subTest(case=name):
@@ -268,6 +274,134 @@ class TestPhoneNumberPolicyBooking(unittest.TestCase):
             gateway, options={"postnord_phone_number_policy": "omit_when_email_suffices"}
         )
         self.assertEqual(shipment["service"]["additionalServiceCode"], ["C7"])
+
+
+class TestOmitUnlessRequiredBooking(unittest.TestCase):
+    def test_phones_are_omitted_with_or_without_email(self):
+        for name, address in [("with_email", {}), ("without_email", NO_EMAIL)]:
+            with self.subTest(case=name):
+                shipment, _ = _booking(
+                    REQUIRED_ONLY_GATEWAY, shipper=address, recipient=address
+                )
+                self.assertEqual(_phones(_contact(shipment, "consignee")), OMITTED)
+                self.assertEqual(_phones(_contact(shipment, "consignor")), OMITTED)
+                self.assertEqual(
+                    _contact(shipment, "consignee")["contactName"], "Jane Receiver"
+                )
+
+    def test_phone_dependent_services_keep_the_consignee_phone(self):
+        for option, code in [
+            ("sms_notification", "A3"),
+            ("postnord_notify_by_sms", "A3"),
+            ("postnord_notify_by_phone", "A9"),
+            ("postnord_driver_notification", "B8"),
+        ]:
+            for name, address in [("with_email", {}), ("without_email", NO_EMAIL)]:
+                with self.subTest(option=option, case=name):
+                    shipment, _ = _booking(
+                        REQUIRED_ONLY_GATEWAY,
+                        options={option: True},
+                        shipper=address,
+                        recipient=address,
+                    )
+                    self.assertIn(code, shipment["service"]["additionalServiceCode"])
+                    self.assertEqual(
+                        _phones(_contact(shipment, "consignee")), _kept(RECIPIENT_PHONE)
+                    )
+                    self.assertEqual(_phones(_contact(shipment, "consignor")), OMITTED)
+
+    def test_other_services_do_not_keep_the_consignee_phone(self):
+        for option in ["email_notification", "postnord_notify_by_letter", "insurance"]:
+            with self.subTest(option=option):
+                value = 500.0 if option == "insurance" else True
+                shipment, _ = _booking(
+                    REQUIRED_ONLY_GATEWAY, options={option: value}, recipient=NO_EMAIL
+                )
+                self.assertEqual(_phones(_contact(shipment, "consignee")), OMITTED)
+
+    def test_product_required_phones_are_kept(self):
+        cases = [
+            ("postnord_parcel", OMITTED, _kept(RECIPIENT_PHONE)),
+            ("postnord_return_pickup", _kept(SHIPPER_PHONE), _kept(RECIPIENT_PHONE)),
+            ("postnord_return", _kept(SHIPPER_PHONE), _kept(RECIPIENT_PHONE)),
+        ]
+        for service, consignor, consignee in cases:
+            for name, address in [("with_email", {}), ("without_email", NO_EMAIL)]:
+                with self.subTest(service=service, case=name):
+                    shipment, _ = _booking(
+                        REQUIRED_ONLY_GATEWAY,
+                        payload={**ShipmentPayload, "service": service, "options": {}},
+                        shipper=address,
+                        recipient=address,
+                    )
+                    self.assertEqual(_phones(_contact(shipment, "consignor")), consignor)
+                    self.assertEqual(_phones(_contact(shipment, "consignee")), consignee)
+
+    def test_defaulted_notification_decides_the_consignee_phone(self):
+        cases = [
+            ("sms", ["sms"], {}, "A3", _kept(RECIPIENT_PHONE)),
+            ("email_first", ["email", "sms"], {}, "A4", OMITTED),
+            ("sms_without_email", ["email", "sms"], NO_EMAIL, "A3", _kept(RECIPIENT_PHONE)),
+            ("letter", ["letter"], NO_EMAIL, "A2", OMITTED),
+        ]
+        for name, channels, recipient, defaulted, expected in cases:
+            with self.subTest(case=name):
+                request_gateway = karrio.gateway["postnord"].create(
+                    dict(
+                        _settings,
+                        config=dict(
+                            postnord_phone_number_policy="omit_unless_required",
+                            postnord_default_notification=channels,
+                        ),
+                    )
+                )
+                shipment, ctx = _booking(
+                    request_gateway, payload=COLLECT_PAYLOAD, recipient=recipient
+                )
+                self.assertEqual(ctx.get("notification_defaulted"), defaulted)
+                self.assertEqual(shipment["service"]["additionalServiceCode"], [defaulted])
+                self.assertEqual(_phones(_contact(shipment, "consignee")), expected)
+
+    def test_customs_invoice_contacts_keep_their_phones(self):
+        payload = CustomsInvoiceShipmentPayload
+        shipment, _ = _booking(
+            REQUIRED_ONLY_GATEWAY, payload=payload, shipper=NO_EMAIL, recipient=NO_EMAIL
+        )
+        invoice = shipment["customsInvoice"]
+        self.assertEqual(
+            invoice["seller"]["contacts"]["phoneNo"], payload["shipper"]["phone_number"]
+        )
+        self.assertEqual(
+            invoice["buyer"]["contacts"]["phoneNo"], payload["recipient"]["phone_number"]
+        )
+        self.assertEqual(_phones(_contact(shipment, "consignor")), OMITTED)
+
+    def test_request_option_selects_the_policy(self):
+        cases = [
+            (gateway, "omit_unless_required", NO_EMAIL, OMITTED),
+            (REQUIRED_ONLY_GATEWAY, "always", NO_EMAIL, _kept(RECIPIENT_PHONE)),
+            (REQUIRED_ONLY_GATEWAY, "omit_when_email_suffices", NO_EMAIL, _kept(RECIPIENT_PHONE)),
+            (REQUIRED_ONLY_GATEWAY, None, NO_EMAIL, OMITTED),
+        ]
+        for request_gateway, requested, recipient, expected in cases:
+            with self.subTest(requested=requested):
+                options = (
+                    {} if requested is None else {"postnord_phone_number_policy": requested}
+                )
+                shipment, _ = _booking(
+                    request_gateway, options=options, recipient=recipient
+                )
+                self.assertEqual(_phones(_contact(shipment, "consignee")), expected)
+
+    def test_pickup_party_keeps_its_phone(self):
+        address = {**PickupPayload["address"], "email": None}
+        request = REQUIRED_ONLY_GATEWAY.mapper.create_pickup_request(
+            models.PickupRequest(**{**PickupPayload, "address": _without_none(address)})
+        )
+        contact = _serialized(request)["shipment"][0]["parties"]["consignor"][
+            "party"
+        ]["contact"]
+        self.assertEqual(_phones(contact), _kept(PickupPayload["address"]["phone_number"]))
 
 
 class TestPhoneNumberPolicyPickup(unittest.TestCase):
