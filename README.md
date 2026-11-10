@@ -279,13 +279,13 @@ Live checks found the digital endpoint's success response to be the bare `bookin
 | Rating | Static rates from the connection's service levels / server-side RateSheet (no carrier call by default). Optionally enriched with live transit times when `enable_transit_times` is on. |
 | Shipment | Booking + label retrieval in one call (`/rest/shipment/v3/edi/labels/pdf`, or `/labels/zpl` when the resolved label type is ZPL). |
 | Pickup | Domestic pickup by item id (`/v3/pickups/ids`) or pickup booking (`/v3/pickups`) via `Pickup.schedule`; see [Pickups](#pickups). |
-| Tracking | Event-based via Track & Trace v7 (`findByIdentifier`); degrades to link-only (tracking URL + `pending` status) when the key isn't authorized for the T&T product. |
+| Tracking | Event-based via Track & Trace v7 (`findByIdentifier`); returns the authorization error and no tracking detail when the key isn't authorized for the T&T product. |
 | Returns | Booked via the shipment create flow with a return service code. |
 | Service points | Connector-local lookup (`gateway.proxy.find_service_points`). |
 
 ## Limitations
 
-Tracking uses PostNord Track & Trace v7 (`findByIdentifier`) for full event history and normalized statuses. Per-product authorization applies (as with Transit Time): if the key is not subscribed to the Track & Trace product, tracking degrades gracefully to link-only — a tracking URL plus the `pending` status, no events.
+Tracking uses PostNord Track & Trace v7 (`findByIdentifier`) for full event history and normalized statuses. Per-product authorization applies (as with Transit Time): if the key is not subscribed to the Track & Trace product, tracking returns an explicit authorization error message and no tracking detail.
 
 Cancellation is not available over the REST API: PostNord's REST `/v3/edi` ignores `updateIndicator: "Deletion"` and re-books a duplicate, and the id-based delete endpoint is absent from the published spec. The connector therefore never cancels and never reports a false success — cancel returns an explicit failure message pending PostNord's v3 REST reference manual.
 
