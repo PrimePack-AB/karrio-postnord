@@ -9,6 +9,7 @@ build/
 !.envrc
 logs/
 vendor/
+.superpowers/
 tests/postnord/fixtures/*.pdf
 tests/postnord/fixtures/*.zpl
 tests/postnord/fixtures/sandbox/*.pdf
