@@ -46,7 +46,7 @@ Implementation plan for the `postnord_brev` carrier, originating in this reposit
 
 **Interfaces:**
 - Consumes: `karrio.universal.mappers.rating_proxy.RatingMixinProxy` and `RatingMixinSettings`; `karrio.universal.providers.rating.rate_request`/`parse_rate_response` (same imports the fork's `generic` mapper uses).
-- Produces: `units.ShippingService.postnord_brev_first_class`, `units.DEFAULT_SERVICES` (one `models.ServiceLevel`), `Settings` with fields `customer_number`, `franking_asset`, `services`; fixture `gateway` and `gateway_without(**drop)` used by later tasks' tests.
+- Produces: `units.ShippingService.postnord_brev_first_class`, `units.DEFAULT_SERVICES` (one `models.ServiceLevel`), `units.PhoneNumberPolicy`, `units.ConnectionConfig.postnord_phone_number_policy`, `units.resolve_phone_number_policy(payload, settings)`, `Settings` with fields `customer_number`, `franking_asset`, `services`; fixtures `gateway`, `gateway_without(**drop)`, `gateway_with_phone_policy(policy)` used by later tasks' tests.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -83,6 +83,13 @@ def gateway_without(**drop):
     """Gateway with top-level settings fields removed, for guard tests."""
     return karrio.gateway["postnord_brev"].create(
         {k: v for k, v in _settings.items() if k not in drop}
+    )
+
+
+def gateway_with_phone_policy(policy):
+    """Gateway whose connection config sets postnord_phone_number_policy."""
+    return karrio.gateway["postnord_brev"].create(
+        dict(_settings, config=dict(postnord_phone_number_policy=policy))
     )
 ```
 
@@ -172,6 +179,15 @@ class Settings(core.Settings):
     @property
     def carrier_name(self):
         return "postnord_brev"
+
+    @property
+    def connection_config(self) -> lib.units.Options:
+        from karrio.providers.postnord_brev.units import ConnectionConfig
+
+        return lib.to_connection_config(
+            self.config or {},
+            option_type=ConnectionConfig,
+        )
 ```
 
 `karrio/providers/postnord_brev/units.py`:
@@ -194,8 +210,29 @@ class ShippingOption(lib.Enum):
     pass
 
 
+class PhoneNumberPolicy(lib.StrEnum):
+    """Shipper-contact policy on the label, mirroring the postnord carrier's
+    postnord_phone_number_policy semantics; unknown values fail safe to
+    ``always``."""
+
+    always = "always"
+    omit_when_email_suffices = "omit_when_email_suffices"
+
+
 class ConnectionConfig(lib.Enum):
-    pass
+    postnord_phone_number_policy = lib.OptionEnum(
+        "postnord_phone_number_policy", PhoneNumberPolicy
+    )
+
+
+def resolve_phone_number_policy(payload, settings) -> str:
+    """Shipper-contact policy: the shipment option wins over the connection
+    config; unknown values fail safe to ``always``."""
+    option = (payload.options or {}).get("postnord_phone_number_policy")
+    config = settings.connection_config.postnord_phone_number_policy.state
+    raw = option or config or "always"
+    value = str(getattr(raw, "value", raw))
+    return value if value in ("always", "omit_when_email_suffices") else "always"
 
 
 # One letter product in v1: domestic First Class under port payé. The SE-only
@@ -382,7 +419,7 @@ git commit -m "feat: scaffold the postnord_brev carrier with static SE rating"
 
 **Interfaces:**
 - Consumes: `tests/postnord_brev/fixture.py` (`SyntheticFrankingAsset`).
-- Produces: `render_label(shipment, customer_number: str, weight_grams: int, franking_asset_href: str, ship_date: str = None) -> str` — Task 3 calls it with an already-guarded `models.ShipmentRequest` and a complete `data:` URI.
+- Produces: `render_label(shipment, customer_number: str, weight_grams: int, franking_asset_href: str, ship_date: str = None, shipper_contact: str = None) -> str` — Task 3 calls it with an already-guarded `models.ShipmentRequest`, a complete `data:` URI, and a pre-joined contact string.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -469,6 +506,24 @@ class TestBrevLabelRender(unittest.TestCase):
             models.ShipmentRequest(**payload), "20000000", 1000, self.href
         )
         self.assertIn("Jane &lt;b&gt;Doe&lt;/b&gt;", svg)
+
+    def test_shipper_contact_line_renders_when_given(self):
+        payload = {
+            **ShipmentPayload,
+            "shipper": {
+                **ShipmentPayload["shipper"],
+                "email": "avsandare@example.se",
+                "phone_number": "+46 70 123 45 67",
+            },
+        }
+        svg = render_label(
+            models.ShipmentRequest(**payload),
+            "20000000",
+            1000,
+            self.href,
+            shipper_contact="avsandare@example.se · +46701234567",
+        )
+        self.assertIn("avsandare@example.se · +46701234567", svg)
 ```
 
 - [ ] **Step 2: Run to verify failure**
@@ -535,6 +590,11 @@ Then run `env -u PYTHONPATH .venv/bin/pip install -e . --no-deps && .venv/bin/pi
     <text x="5" y="{{ 12.1 + loop.index0 * 2.45 }}" font-size="2.12" font-weight="bold">{{ line }}</text>
     {% endfor %}
 
+    <!-- Shipper contact (email, phone per policy) -->
+    {% if shipper_contact %}
+    <text x="5" y="19.6" font-size="1.94">{{ shipper_contact }}</text>
+    {% endif %}
+
     <!-- Franking asset (port payé kliché) as inline data URI: 32 x 18 mm, right-aligned -->
     <image href="{{ franking_asset_href }}" x="64" y="6" width="32" height="18" preserveAspectRatio="xMaxYMin meet"/>
 
@@ -600,6 +660,7 @@ def render_label(
     weight_grams: int,
     franking_asset_href: str,
     ship_date: str = None,
+    shipper_contact: str = None,
 ) -> str:
     """Render the brev label SVG for an already-guarded shipment payload."""
     stamp = datetime.datetime.now().strftime("%Y%m%d%H%M")
@@ -609,6 +670,7 @@ def render_label(
         weight_grams=weight_grams,
         franking_asset_href=franking_asset_href,
         ship_date=ship_date or datetime.date.today().isoformat(),
+        shipper_contact=shipper_contact,
         stamp=stamp,
     )
 ```
@@ -657,7 +719,7 @@ from unittest.mock import patch
 import karrio.sdk as karrio
 import karrio.core.models as models
 
-from .fixture import gateway, gateway_without
+from .fixture import gateway, gateway_without, gateway_with_phone_policy
 from .test_label_render import ShipmentPayload
 
 
@@ -797,6 +859,41 @@ class TestBrevGuards(unittest.TestCase):
         response = _create(dict(ShipmentPayload), gw)
         svg = base64.b64decode(response.shipment.docs.label).decode()
         self.assertIn("data:image/svg+xml;base64," + SyntheticFrankingAsset, svg)
+
+
+class TestBrevShipperContact(unittest.TestCase):
+    def _svg(self, payload, gw=gateway):
+        response = _create(payload, gw)
+        return base64.b64decode(response.shipment.docs.label).decode()
+
+    def _contact_payload(self, **options):
+        return {
+            **ShipmentPayload,
+            "shipper": {
+                **ShipmentPayload["shipper"],
+                "email": "avsandare@example.se",
+                "phone_number": "+46 70 123 45 67",
+            },
+            "options": options,
+        }
+
+    def test_email_suffices_omits_phone(self):
+        svg = self._svg(
+            self._contact_payload(postnord_phone_number_policy="omit_when_email_suffices")
+        )
+        self.assertIn("avsandare@example.se", svg)
+        self.assertNotIn("46701234567", svg)
+
+    def test_always_policy_prints_phone_beside_email(self):
+        svg = self._svg(self._contact_payload(postnord_phone_number_policy="always"))
+        self.assertIn("avsandare@example.se · +46701234567", svg)
+
+    def test_request_option_overrides_connection_config(self):
+        payload = self._contact_payload(postnord_phone_number_policy="always")
+        svg = self._svg(
+            payload, gateway_with_phone_policy("omit_when_email_suffices")
+        )
+        self.assertIn("46701234567", svg)
 ```
 
 - [ ] **Step 2: Run to verify failure**
@@ -819,12 +916,14 @@ returns shipment details with the provider-forced ``SVG`` label type.
 
 import base64
 import binascii
+import re
 import uuid
 
 import karrio.lib as lib
 import karrio.core.models as models
 
 from karrio.providers.postnord_brev.label import render_label
+from karrio.providers.postnord_brev.units import resolve_phone_number_policy
 
 WEIGHT_UNIT_GRAMS = {"KG": 1000.0, "G": 1.0, "LB": 453.592, "OZ": 28.3495}
 DIMENSION_UNIT_MM = {"CM": 10.0, "M": 1000.0, "IN": 25.4, "MM": 1.0}
@@ -859,6 +958,7 @@ def create_shipment(request, settings):
         customer_number,
         int(round(_weight_grams(parcel))),
         _franking_asset_href(settings.franking_asset),
+        shipper_contact=_shipper_contact(payload, settings),
     )
 
     details = models.ShipmentDetails(
@@ -880,6 +980,20 @@ def parse_shipment_response(response, settings):
 def _weight_grams(parcel) -> float:
     factor = WEIGHT_UNIT_GRAMS.get((parcel.weight_unit or "KG").upper(), 1000.0)
     return float(parcel.weight or 0) * factor
+
+
+def _shipper_contact(payload, settings):
+    """Sender contact line: email always; phone per the policy, mirroring the
+    postnord carrier's postnord_phone_number_policy semantics."""
+    shipper = payload.shipper
+    policy = resolve_phone_number_policy(payload, settings)
+    parts = []
+    if shipper.email:
+        parts.append(shipper.email)
+    phone = re.sub(r"[\s-]", "", shipper.phone_number or "")
+    if phone and (policy == "always" or not shipper.email):
+        parts.append(phone)
+    return " · ".join(parts) or None
 
 
 def _franking_asset_href(asset: str) -> str:

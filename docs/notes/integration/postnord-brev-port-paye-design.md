@@ -33,6 +33,7 @@ All settled with the product owner on 2026-11-10:
 - Kundnummer resolution: shipment metadata override, else the connection's required `customer_number`; unresolvable is a hard failure.
 - The franking asset is consumer-supplied in v1 (fail-closed when absent); a connector-drawn mark is parked pending PostNord's answer.
 - No tracking, pickup, manifest, or cancel capability.
+- Shipper contact (email, phone) prints under the sender block, mirroring the postnord carrier's `postnord_phone_number_policy` semantics: same option name and values, request-overrides-config, default `always`; `omit_when_email_suffices` drops the phone exactly when an email is present. At least one contact is not mandatory in v1 — the terms require only a complete sender designation (product-owner ruling 2026-11-10; make mandatory if a firmer requirement emerges).
 - Multi-part label panels are deferred: the fixture below is the minimally viable label.
 
 ## Architecture
@@ -86,7 +87,7 @@ All text is hard-coded Swedish (Avsändare, Vikt, Kundnummer, Datum); the engine
 
 The minimally viable label is the fixture agreed in session — the PART 1 panel of the proven template, everything else deferred:
 
-- Sender block, top left.
+- Sender block, top left, with a shipper contact line beneath it (email, and phone per the policy decision above; phone digits normalized by stripping spaces and dashes).
 - Franking asset inlined as a base64 data URI, top right, `preserveAspectRatio` fit inside the postage slot.
 - Kundnummer under the mark.
 - Engine line with timestamp, address-window corner marks, vertical tagline.
@@ -131,6 +132,7 @@ Claims discipline follows the established rules: the label is our own content (n
 
 - Kundintegration answers on fidelity and embedding/redistribution; the self-drawn mark and any default asset depend on them.
 - Whether agreement or ELIN instruction material says anything about kundnummer on the item (public sources are silent; our printing of it is product policy).
+- Whether a shipper contact becomes mandatory on the label (ruling 2026-11-10: optional; revisit if the agreement material or operational experience says letters are returned or delayed without one).
 - Deferred label PARTs 2+, with the postage-slot resize toward kliché artboard scale and any postoperatörszon refinement.
 - Version bump at release (calendar scheme; 2026.11.0 is current).
 - Everything this design leans on is upstream-identical karrio machinery, so an upstreamable future stays open; nothing here requires new fork SDK surface.
