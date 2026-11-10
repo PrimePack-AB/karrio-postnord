@@ -18,6 +18,8 @@ class Settings(provider_utils.Settings, rating_proxy.RatingMixinSettings):
     franking_asset: typing.Optional[str] = None
 
     # generic properties
+    # id must stay declared: DP.to_object drops undeclared settings keys.
+    id: str = None  # type: ignore
     test_mode: bool = False
     carrier_id: str = "postnord_brev"
     account_country_code: str = "SE"
