@@ -137,3 +137,19 @@ The developer portal's EDI documentation store held later editions titled "Gener
 To keep local copies for development, save them under the local paths in the table.
 `vendor/` is listed in `.gitignore`, so the files stay out of commits; check a copy with `sha256sum vendor/booking.swagger.json` against the table.
 When PostNord publishes a new specification version, record its title, version, and digest here and reconcile the notes and code comments that cite the earlier version.
+
+### Service terms and public pages
+
+The `postnord_brev` carrier (see [the brev concepts page](../concepts/brev.md) and the [design note](../notes/integration/postnord-brev-port-paye-design.md)) rests on PostNord's customer-facing service terms and pages rather than on API specifications.
+The direct PDF downloads below return Cloudflare 403 challenges to automated fetches (observed 2026-11-10 from this environment's `curl` with a browser User-Agent and two fetching services), so no local copies are held and no digests are recorded; the documents are cited by title and effective date — no version is stated inside them — together with the page that lists them.
+The listing page confirms the editions: the service-terms listing at `postnord.se/foretag/priser-och-villkor/tjanstevillkor-avtalskunder` (accessed 2026-11-10) names the 1:a-klassbrev inrikes Särskilda villkor as gällande fr o m 2025-01-01.
+A manual browser download can be recorded later by saving the PDF under the local path in the table and adding its SHA-256 per the conventions above; live URL discovery is documented in the design note's citations section.
+
+| Citation | Listed at | Intended local path (not held) |
+|----------|-----------|--------------------------------|
+| Särskilda villkor för 1:a-klassbrev inrikes, gäller fr o m 2025-01-01 | `postnord.se/foretag/priser-och-villkor/tjanstevillkor-avtalskunder` | `vendor/docs/sarskilda-villkor-1a-klassbrev-inrikes.pdf` |
+| Skicka rätt med PostNord, 2026-01-26 | `postnord.se/siteassets/pdf/ovrigt/skicka-ratt-med-postnord-20260126.pdf` | `vendor/docs/skicka-ratt-med-postnord-20260126.pdf` |
+| Särskilda villkor för Svarspost inrikes, gäller fr o m 2023-05-02 | `postnord.se/foretag/priser-och-villkor/tjanstevillkor-avtalskunder` | — |
+
+Three further citations name pages with no downloadable document: the klichéer / label-blocks pages `postnord.se/foretag/forberedelser/klicheer` and `postnord.se/en/business/preparations/label-blocks/` (the franking-asset download source), and the 1:a-klassbrev inrikes product page `postnord.se/foretag/skicka/brev-och-paket/1a-klassbrev-inrikes`.
+All of the above were accessed 2026-11-10.

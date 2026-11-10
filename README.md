@@ -5,6 +5,12 @@
 
 This package is a PostNord extension of the [karrio](https://pypi.org/project/karrio) multi carrier shipping SDK.
 
+## PostNord Brev (Port Payé)
+
+The package also registers a second carrier, `postnord_brev`, for domestic Swedish First Class letters sent under the sender's port payé agreement: rating and label generation are entirely local, and no PostNord API is contacted anywhere in the flow.
+A brev connection takes two required inputs — the port payé `customer_number`, printed as Kundnummer on every label, and a `franking_asset`, the base64 SVG or PNG franking mark downloaded from [PostNord's label-blocks page](https://www.postnord.se/foretag/forberedelser/klicheer) — and every purchase returns a 100×180 mm SVG label with `label_type` forced to `SVG`.
+See [PostNord Brev (Port Payé)](docs/concepts/brev.md) for the purchase flow, the limits enforced at purchase, and the terms behind them.
+
 ## Requirements
 
 `Python 3.11+`

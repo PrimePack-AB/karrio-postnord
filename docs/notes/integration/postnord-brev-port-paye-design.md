@@ -4,7 +4,7 @@ created: 2026-11-10
 ---
 
 Design note for the `postnord_brev` carrier, originating in this repository on 2026-11-10.
-Status: design settled with the product owner on 2026-11-10, pending the owner's review of this note before implementation planning; the PostNord licensing questions in "Franking asset and licensing" await the kundintegration request (draft in the appendix).
+Status: implemented — the carrier landed on the postnord-brev branch on 2026-11-10 (implementation plan: docs/notes/plans/2026-11-10-postnord-brev.md); of the open items below, only the kundintegration questions in "Franking asset and licensing" (draft in the appendix) still await an answer, and the rest are deferred enhancements and release chores.
 
 ## Product definition
 
