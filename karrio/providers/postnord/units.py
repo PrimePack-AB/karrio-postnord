@@ -51,10 +51,13 @@ class PhoneNumberPolicy(lib.StrEnum):
     drops a party's ``phoneNo`` and ``smsNo`` when the party has an email and
     neither the basic service (PRODUCT_PHONE_PARTIES) nor, for the consignee,
     a booked additional service (CONSIGNEE_PHONE_SERVICES) needs its phone.
+    ``omit_unless_required`` drops them under the same need rule whether or
+    not the party has an email.
     """
 
     always = "always"
     omit_when_email_suffices = "omit_when_email_suffices"
+    omit_unless_required = "omit_unless_required"
 
 
 # postnord_default_notification presets released in 2026.10.4, accepted as the
@@ -273,7 +276,7 @@ NOTIFICATION_DEFAULTED = "postnord_notification_defaulted"
 
 # Additional services that reach the consignee by phone: SMS (A3), phone
 # notification (A9) and driver notification (B8). Booking one keeps the
-# consignee phone under PhoneNumberPolicy.omit_when_email_suffices.
+# consignee phone under the omitting PhoneNumberPolicy values.
 CONSIGNEE_PHONE_SERVICES = frozenset(
     {
         ShippingOption.postnord_notify_by_sms.value.code,
@@ -291,7 +294,7 @@ class PartyRole(lib.StrEnum):
 
 
 # PostNord General Descriptions: the parties whose phone the basic service
-# requires, kept under PhoneNumberPolicy.omit_when_email_suffices. Parcel (18)
+# requires, kept under the omitting PhoneNumberPolicy values. Parcel (18)
 # makes the consignee phone mandatory, Return Pickup (20) SMS on both parties,
 # and Return (24) e-mail and SMS on the return part; "return part" does not
 # name a party, so 24 keeps both phones as the safe reading.

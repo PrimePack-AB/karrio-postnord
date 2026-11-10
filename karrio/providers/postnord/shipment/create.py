@@ -997,12 +997,9 @@ def shipment_request(
     # Decided from the complete code list, after the service-point A7 and the
     # defaulted notification are appended; the address models keep their
     # phones so the notification and customs invoice checks still see them.
-    omit_phones_email_covers = (
-        provider_units.phone_number_policy(
-            (payload.options or {}).get("postnord_phone_number_policy"),
-            settings.connection_config.postnord_phone_number_policy.state,
-        )
-        == provider_units.PhoneNumberPolicy.omit_when_email_suffices
+    phone_policy = provider_units.phone_number_policy(
+        (payload.options or {}).get("postnord_phone_number_policy"),
+        settings.connection_config.postnord_phone_number_policy.state,
     )
     product_phone_parties = provider_units.PRODUCT_PHONE_PARTIES.get(
         service, frozenset()
@@ -1132,11 +1129,14 @@ def shipment_request(
     def _party(
         address, *, with_consignor_id: bool, phone_needed: bool
     ) -> postnord_req.ConsigneeType:
-        phone_number = lib.identity(
-            None
-            if omit_phones_email_covers and address.email and not phone_needed
-            else address.phone_number
+        omit_phone = not phone_needed and (
+            phone_policy == provider_units.PhoneNumberPolicy.omit_unless_required
+            or (
+                phone_policy == provider_units.PhoneNumberPolicy.omit_when_email_suffices
+                and bool(address.email)
+            )
         )
+        phone_number = None if omit_phone else address.phone_number
         return postnord_req.ConsigneeType(
             issuerCode=settings.issuer_code,
             partyIdentification=lib.identity(
