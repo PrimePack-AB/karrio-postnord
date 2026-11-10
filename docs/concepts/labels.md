@@ -61,13 +61,14 @@ PostNord's parcel labels print a "Phone:" field for the sender and the recipient
 The `postnord_phone_number_policy` option, set on the connection config and overridable per shipment in `options`, controls whether those numbers are sent.
 The default `always` sends every party's phone number, as before the option existed.
 With `omit_when_email_suffices`, the connector leaves both `phoneNo` and `smsNo` off a consignor or consignee that has an e-mail address, unless the booking needs that party's phone; a party without an e-mail address always keeps its phone.
+With `omit_unless_required`, the connector leaves them off a consignor or consignee whenever the booking does not need that party's phone, whether or not the party has an e-mail address.
 
-A party's phone is needed when the basic service requires it or, for the consignee, when a booked additional service reaches the consignee by phone:
+Both omitting values share one rule for when a party's phone is needed: it is needed when the basic service requires it or, for the consignee, when a booked additional service reaches the consignee by phone:
 
 - Parcel (18) requires the consignee phone.
 - Return Pickup (20) requires SMS contact data on both parties.
 - Return (24) requires e-mail and SMS on the return part; PostNord does not name which party that is, so both phones are kept as the safe reading.
-- SMS notification (A3), phone notification (A9), and driver notification (B8) keep the consignee phone, including an A3 booked by `postnord_default_notification` for MyPack Collect (19).
+- SMS notification (A3), phone notification (A9), and driver notification (B8) keep the consignee phone, including an A3 booked by `postnord_default_notification` for MyPack Collect (19); a consignee without an e-mail address skips the `email` channel, so a channel list that falls through to `sms` books A3 and keeps the phone.
 
 The rule relies on the connector's model of which services need a phone (`PRODUCT_PHONE_PARTIES` and `CONSIGNEE_PHONE_SERVICES` in `karrio/providers/postnord/units.py`), not on a PostNord validation, so a product requirement missing from that model is not protected.
 Customs invoice seller and buyer contacts always keep their phone numbers, so customs forms still print them, and pickup bookings keep the pickup party's phone.
