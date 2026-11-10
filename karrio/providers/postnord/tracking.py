@@ -8,11 +8,11 @@ status, a delivered flag, ``signed_by``, and estimated delivery.
 
 PostNord authorizes per product, so the v7 call may return the gateway 403
 envelope (``{"error": {"status_code": 403, ...}}``) when the key is not
-subscribed to T&T. When the response yields no usable item (auth error,
-``compositeFault``, or no data) the detail degrades to the prior link-only
-behavior: the tracking URL plus a single ``pending`` status and an
-empty event list, so tracking still returns a usable result. Both the
-``compositeFault`` and the gateway envelope are surfaced as error Messages.
+subscribed to T&T. Both the ``compositeFault`` and the gateway envelope are
+surfaced as error Messages; when such an error comes with no usable item, the
+tracking number yields no detail, only the messages. A successful response with
+no item (an empty body or no shipments) yields a link-only detail: the tracking
+URL, the ``pending`` status, and an empty event list.
 """
 
 import typing
@@ -31,23 +31,34 @@ def parse_tracking_response(
 ) -> typing.Tuple[typing.List[models.TrackingDetails], typing.List[models.Message]]:
     responses = _response.deserialize()
 
-    messages: typing.List[models.Message] = sum(
-        [
+    results = [
+        (
+            tracking_number,
+            response,
             error.parse_error_response(
                 # the compositeFault is nested under TrackingInformationResponse;
                 # the gateway 403 envelope sits at the top level, so pass both.
                 [_information(response), response],
                 settings,
                 tracking_number=tracking_number,
-            )
-            for tracking_number, response in responses
-        ],
-        start=[],
+            ),
+        )
+        for tracking_number, response in responses
+    ]
+
+    messages: typing.List[models.Message] = sum(
+        [errors for _, _, errors in results], start=[]
     )
 
     tracking_details = [
-        _extract_details(response, settings, tracking_number)
-        for tracking_number, response in responses
+        detail
+        for detail in (
+            _extract_details(
+                response, settings, tracking_number, has_errors=any(errors)
+            )
+            for tracking_number, response, errors in results
+        )
+        if detail is not None
     ]
 
     return tracking_details, messages
@@ -64,13 +75,15 @@ def _extract_details(
     data: dict,
     settings: provider_utils.Settings,
     tracking_number: str,
-) -> models.TrackingDetails:
+    has_errors: bool,
+) -> typing.Optional[models.TrackingDetails]:
     tracking_url = settings.tracking_url.format(tracking_number)
     shipment, item = _locate_item(_information(data), tracking_number)
 
+    if item is None and has_errors:
+        return None
+
     if item is None:
-        # No usable v7 data (auth error, compositeFault, or empty body): degrade
-        # to the link-only result so tracking still returns a usable detail.
         return models.TrackingDetails(
             carrier_id=settings.carrier_id,
             carrier_name=settings.carrier_name,

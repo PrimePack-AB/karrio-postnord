@@ -77,6 +77,18 @@ class TestPostNordTracking(unittest.TestCase):
                 )
                 self.assertEqual(messages, [])
 
+    def test_parse_composite_fault_without_item_returns_no_detail(self):
+        with patch("karrio.mappers.postnord.proxy.lib.request") as mock:
+            mock.return_value = CompositeFaultResponse
+            details, messages = (
+                karrio.Tracking.fetch(self.TrackingRequest).from_(gateway).parse()
+            )
+            self.assertEqual(details, [])
+            self.assertEqual(
+                [(m.code, m.message) for m in messages],
+                [("NOT_FOUND", "No item found for identifier")],
+            )
+
     def test_parse_error_response(self):
         with patch("karrio.mappers.postnord.proxy.lib.request") as mock:
             mock.return_value = ErrorResponse
@@ -229,6 +241,17 @@ def pre_scan_response(item_status: str) -> str:
     )
 
 
+CompositeFaultResponse = """{
+  "TrackingInformationResponse": {
+    "compositeFault": {
+      "faults": [
+        {"faultCode": "NOT_FOUND", "explanationText": "No item found for identifier"}
+      ]
+    },
+    "shipments": []
+  }
+}"""
+
 ErrorResponse = """{
   "error": {
     "status_code": 403,
@@ -307,18 +330,7 @@ ParsedInTransitResponse = [
 ]
 
 ParsedErrorResponse = [
-    [
-        {
-            "carrier_id": "postnord",
-            "carrier_name": "postnord",
-            "tracking_number": "00373500454541020957",
-            "delivered": False,
-            "status": "pending",
-            "info": {
-                "carrier_tracking_link": "https://tracking.postnord.com/se/?id=00373500454541020957",
-            },
-        }
-    ],
+    [],
     [
         {
             "carrier_id": "postnord",
