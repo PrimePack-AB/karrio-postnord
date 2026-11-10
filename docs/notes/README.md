@@ -10,7 +10,7 @@ The notes ported from the Joaqim/karrio fork (branch `docs-openspec`) were all b
 Each ported note's header carries its fork origin path and the fork-side creation and last-change dates.
 Where ported content has since been superseded by connector changes, the note carries a dated "Ported-note update" paragraph rather than a silent edit.
 Notes originating in this repository carry their own creation dates and say so in their headers.
-`integration/` holds design, mapping, and fact notes; `sandbox/` holds probe and verification records against PostNord hosts.
+`integration/` holds design, mapping, and fact notes; `sandbox/` holds probe and verification records against PostNord hosts; `plans/` holds implementation plans.
 
 | Note | Purpose | Status | Created | Last changed |
 |------|---------|--------|---------|--------------|
@@ -20,6 +20,7 @@ Notes originating in this repository carry their own creation dates and say so i
 | [integration/locale-notification-findings.md](integration/locale-notification-findings.md) | Booking vs tracking locale semantics, notification additional services, and the `en` default divergence | active | 2026-09-28 | 2026-10-13 |
 | [integration/nvit-customs-facts.md](integration/nvit-customs-facts.md) | Norwegian goods-in-transit (NVIT) requirements and the declaration branches' capability against them | active | 2026-09-28 | 2026-10-13 |
 | [integration/postnord-brev-port-paye-design.md](integration/postnord-brev-port-paye-design.md) | Design for the `postnord_brev` no-API carrier: port payé First Class letters, local SVG label, guards, franking-asset licensing | active | 2026-11-10 | 2026-11-10 |
+| [plans/2026-11-10-postnord-brev.md](plans/2026-11-10-postnord-brev.md) | Task-by-task implementation plan for the `postnord_brev` carrier (TDD, from the design note) | active | 2026-11-10 | 2026-11-10 |
 | [integration/swagger-ingestion-findings.md](integration/swagger-ingestion-findings.md) | Synthesis of the API-spec ingestion pass: dead ends (cancel), the service-code catalog, and discovered capabilities | active | 2026-06-24 | 2026-10-13 |
 | [integration/conformance-ralph-report.md](integration/conformance-ralph-report.md) | Closed measure→fix→commit loop that drove the connector to upstream conformance (4 defects to 0) | historical | 2026-06-24 | 2026-10-13 |
 | [integration/credential-verification-design.md](integration/credential-verification-design.md) | Unimplemented design for per-product credential verification probes | historical | 2026-09-28 | 2026-10-13 |
