@@ -12,14 +12,22 @@ deployments should request the default.
 
 import base64
 import binascii
+import datetime
 import re
 import uuid
+
+import jinja2
+from jinja2.sandbox import SandboxedEnvironment
 
 import karrio.lib as lib
 import karrio.core.models as models
 
 from karrio.providers.postnord_brev.label import render_label, svg_to_pdf
-from karrio.providers.postnord_brev.units import resolve_phone_number_policy
+from karrio.providers.postnord_brev.units import (
+    resolve_label_tagline,
+    resolve_phone_number_policy,
+    resolve_stamp_pattern,
+)
 
 WEIGHT_UNIT_GRAMS = {"KG": 1000.0, "G": 1.0, "LB": 453.592, "OZ": 28.3495}
 DIMENSION_UNIT_MM = {"CM": 10.0, "M": 1000.0, "IN": 25.4, "MM": 1.0}
@@ -28,6 +36,18 @@ MAX_LENGTH_PLUS_WIDTH_PLUS_HEIGHT_MM = 900.0
 
 SERVICE_NAME = "PostNord Brev First Class (Port Payé)"
 KLICHE_DOWNLOAD = "postnord.se/foretag/forberedelser/klicheer"
+
+# Engine line: the pattern is jinja2 syntax rendered against a small,
+# fixed context; the default keeps the sender company in the line.
+DEFAULT_STAMP_PATTERN = "{{ shipper.company_name }} – {{ stamp }}"
+STAMP_PATTERN_MAX = 200
+ENGINE_LINE_MAX = 80
+TAGLINE_MAX = 60
+
+# The sandbox blocks attribute access beyond the exposed context; a
+# syntactically invalid or unsupported pattern raises TemplateError, which
+# surfaces as a FieldError naming the option.
+_pattern_env = SandboxedEnvironment(autoescape=False, undefined=jinja2.Undefined)
 
 PNG_MAGIC = b"\x89PNG"
 SVG_MAGICS = (b"<svg", b"<?xml")
@@ -58,6 +78,8 @@ def create_shipment(request, settings):
         int(round(_weight_grams(parcel))),
         asset_href,
         shipper_contact=_shipper_contact(payload, settings),
+        engine_line=_engine_line(payload, settings),
+        tagline=_tagline(payload, settings),
     )
 
     requested = str(payload.label_type or "PDF").upper()
@@ -105,6 +127,63 @@ def _shipper_contact(payload, settings):
     if phone and (policy == "always" or not shipper.email):
         parts.append(phone)
     return " · ".join(parts) or None
+
+
+def _engine_line(payload, settings):
+    """Engine line: render the resolved jinja2 pattern against the shipment.
+
+    The output is plain text; the label template's autoescaping handles the
+    SVG boundary. Guards: pattern length, template validity, and rendered
+    length all fail closed with a FieldError naming the option.
+    """
+    pattern = resolve_stamp_pattern(payload, settings) or DEFAULT_STAMP_PATTERN
+    if len(pattern) > STAMP_PATTERN_MAX:
+        raise lib.exceptions.FieldError(
+            {
+                "postnord_brev_stamp_pattern": (
+                    f"must be at most {STAMP_PATTERN_MAX} characters"
+                )
+            }
+        )
+    stamp = datetime.datetime.now().strftime("%Y%m%d%H%M")
+    shipper = payload.shipper
+    context = {
+        "shipper": {
+            "company_name": shipper.company_name or shipper.person_name or "",
+            "person_name": shipper.person_name or "",
+        },
+        "reference": payload.reference or "",
+        "stamp": stamp,
+        "date": datetime.date.today().isoformat(),
+        "year": stamp[:4],
+    }
+    try:
+        rendered = _pattern_env.from_string(pattern).render(**context).strip()
+    except (jinja2.exceptions.TemplateError, TypeError) as error:
+        # TypeError: jinja2 raises it (not TemplateError) for loader-dependent
+        # constructs such as {% include %} in a loader-less environment.
+        raise lib.exceptions.FieldError(
+            {"postnord_brev_stamp_pattern": f"is not a valid template: {error}"}
+        )
+    if len(rendered) > ENGINE_LINE_MAX:
+        raise lib.exceptions.FieldError(
+            {
+                "postnord_brev_stamp_pattern": (
+                    f"renders to more than {ENGINE_LINE_MAX} characters"
+                )
+            }
+        )
+    return rendered or None
+
+
+def _tagline(payload, settings):
+    """Vertical right-margin tagline; empty on both layers omits the line."""
+    tagline = (resolve_label_tagline(payload, settings) or "").strip()
+    if len(tagline) > TAGLINE_MAX:
+        raise lib.exceptions.FieldError(
+            {"postnord_brev_label_tagline": f"must be at most {TAGLINE_MAX} characters"}
+        )
+    return tagline or None
 
 
 def _franking_asset_href(asset: str) -> str:

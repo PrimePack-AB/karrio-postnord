@@ -136,3 +136,49 @@ class TestBrevLabelRender(unittest.TestCase):
         self.assertIn(
             '<text x="5" y="21.9" font-size="1.94">' + contact + "</text>", svg
         )
+
+    def test_engine_line_renders_when_given(self):
+        svg = render_label(
+            self.shipment,
+            "20000000",
+            1000,
+            self.href,
+            engine_line="A corp. – 202611121435",
+        )
+        self.assertIn(
+            '<text x="94" y="27.3" font-size="1.76" font-weight="bold" '
+            'text-anchor="end">A corp. – 202611121435</text>',
+            svg,
+        )
+
+    def test_engine_line_and_tagline_omitted_when_unset(self):
+        svg = self.render()
+        self.assertNotIn('<text x="94" y="27.3"', svg)
+        self.assertNotIn("rotate(90)", svg)
+
+    def test_tagline_renders_centred_on_right_margin(self):
+        svg = render_label(
+            self.shipment,
+            "20000000",
+            1000,
+            self.href,
+            tagline="Skicka rätt",
+        )
+        self.assertIn(
+            '<text transform="translate(95.6 45.8) rotate(90)" '
+            'font-size="1.76" font-weight="bold" text-anchor="middle">'
+            "Skicka rätt</text>",
+            svg,
+        )
+
+    def test_tagline_and_engine_line_escape_markup(self):
+        svg = render_label(
+            self.shipment,
+            "20000000",
+            1000,
+            self.href,
+            engine_line="A & B",
+            tagline="C <i>D</i>",
+        )
+        self.assertIn("A &amp; B", svg)
+        self.assertIn("C &lt;i&gt;D&lt;/i&gt;", svg)

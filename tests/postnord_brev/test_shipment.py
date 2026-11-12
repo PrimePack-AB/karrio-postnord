@@ -1,6 +1,7 @@
 """PostNord Brev local shipment flow and guard tests."""
 
 import base64
+import datetime
 import io
 import unittest
 from collections import namedtuple
@@ -231,3 +232,74 @@ class TestBrevShipperContact(unittest.TestCase):
             payload, gateway_with_phone_policy("omit_when_email_suffices")
         )
         self.assertIn("46701234567", svg)
+
+
+class TestBrevLabelOptions(unittest.TestCase):
+    def _svg(self, payload, gw=gateway):
+        response = _create({**payload, "label_type": "SVG"}, gw)
+        return base64.b64decode(response.shipment.docs.label).decode()
+
+    def test_default_engine_line_is_company_and_stamp(self):
+        svg = self._svg(dict(ShipmentPayload))
+        self.assertRegex(svg, r"A corp\. – \d{12}")
+        self.assertNotIn("PrimePack", svg)
+        self.assertNotIn("Fix your Ship", svg)
+
+    def test_stamp_pattern_option_uses_reference(self):
+        payload = {
+            **ShipmentPayload,
+            "reference": "REF-9",
+            "options": {
+                "postnord_brev_stamp_pattern": (
+                    "{{ shipper.company_name }} — {{ reference }}"
+                )
+            },
+        }
+        svg = self._svg(payload)
+        self.assertIn("A corp. — REF-9", svg)
+
+    def test_stamp_pattern_from_connection_config(self):
+        gw = karrio.gateway["postnord_brev"].create(
+            dict(
+                _settings,
+                config=dict(
+                    postnord_brev_stamp_pattern="{{ year }}-{{ reference }}"
+                ),
+            )
+        )
+        svg = self._svg({**ShipmentPayload, "reference": "R2"}, gw)
+        self.assertIn(f"{datetime.date.today().year}-R2", svg)
+
+    def test_invalid_stamp_pattern_fails_closed(self):
+        payload = {
+            **ShipmentPayload,
+            "options": {"postnord_brev_stamp_pattern": "{% include 'x' %}"},
+        }
+        response = _create({**payload, "label_type": "SVG"})
+        self.assertIn("postnord_brev_stamp_pattern", _errors(response))
+
+    def test_overlong_stamp_render_fails_closed(self):
+        payload = {
+            **ShipmentPayload,
+            "options": {"postnord_brev_stamp_pattern": "x" * 81},
+        }
+        response = _create({**payload, "label_type": "SVG"})
+        self.assertIn("postnord_brev_stamp_pattern", _errors(response))
+
+    def test_tagline_option_renders_centred(self):
+        payload = {
+            **ShipmentPayload,
+            "options": {"postnord_brev_label_tagline": "Skicka rätt"},
+        }
+        svg = self._svg(payload)
+        self.assertIn(
+            'text-anchor="middle">Skicka rätt</text>', svg
+        )
+
+    def test_overlong_tagline_fails_closed(self):
+        payload = {
+            **ShipmentPayload,
+            "options": {"postnord_brev_label_tagline": "t" * 61},
+        }
+        response = _create({**payload, "label_type": "SVG"})
+        self.assertIn("postnord_brev_label_tagline", _errors(response))

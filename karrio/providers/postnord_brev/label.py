@@ -38,7 +38,10 @@ _env = jinja2.Environment(
 _SVG_NS = "http://www.w3.org/2000/svg"
 _PNG_MAGIC = b"\x89PNG"
 _X_ANCHORS = {"xMin": 0.0, "xMid": 0.5, "xMax": 1.0}
-_Y_ANCHORS = {"yMin": 1.0, "yMid": 0.5, "yMax": 0.0}
+# The overlay's base position is top-aligned in the slot; the anchor
+# multiplies the vertical slack pushing the content DOWN, so yMin (align to
+# the slot top) is 0 and yMax (align to the slot bottom) is 1.
+_Y_ANCHORS = {"yMin": 0.0, "yMid": 0.5, "yMax": 1.0}
 
 
 def render_label(
@@ -48,9 +51,10 @@ def render_label(
     franking_asset_href: str,
     ship_date: Optional[str] = None,
     shipper_contact: Optional[str] = None,
+    engine_line: Optional[str] = None,
+    tagline: Optional[str] = None,
 ) -> str:
     """Render the brev label SVG for an already-guarded shipment payload."""
-    stamp = datetime.datetime.now().strftime("%Y%m%d%H%M")
     return _env.get_template("label.svg.j2").render(
         shipment=shipment,
         customer_number=customer_number,
@@ -58,7 +62,8 @@ def render_label(
         franking_asset_href=franking_asset_href,
         ship_date=ship_date or datetime.date.today().isoformat(),
         shipper_contact=shipper_contact,
-        stamp=stamp,
+        engine_line=engine_line,
+        tagline=tagline,
     )
 
 
@@ -119,8 +124,18 @@ def _asset_overlay(href: str, page_width: float, page_height: float, slot) -> Gr
     x_anchor, y_anchor = _parse_aspect(aspect)
     origin_x = x * scale + (slot_w - fitted_w) * x_anchor
     origin_y = page_height - (y * scale + fitted_h) + (slot_h - fitted_h) * y_anchor
-    content.scale(fitted_w / natural_w, fitted_h / natural_h)
-    content.translate(origin_x, origin_y)
+    # One explicit matrix, not scale() followed by translate(): reportlab
+    # composes those calls so the translation itself is scaled
+    # (p -> s * (p + t)), which lands the asset at a fraction of its
+    # intended origin.
+    content.transform = (
+        fitted_w / natural_w,
+        0.0,
+        0.0,
+        fitted_h / natural_h,
+        origin_x,
+        origin_y,
+    )
     return content
 
 
@@ -143,7 +158,12 @@ def _asset_drawing(asset: Optional[bytes]):
 
 
 def _parse_aspect(aspect: str) -> Tuple[float, float]:
-    """Anchors in (x, y) order from a preserveAspectRatio meet rule."""
-    x_anchor = next((v for k, v in _X_ANCHORS.items() if k in aspect), 0.5)
-    y_anchor = next((v for k, v in _Y_ANCHORS.items() if k in aspect), 0.5)
+    """Anchors in (x, y) order from a preserveAspectRatio meet rule.
+
+    The SVG tokens capitalize the Y axis (xMaxYMin meet), so the match is
+    case-insensitive; an unparsable rule centers on both axes.
+    """
+    rule = aspect.lower()
+    x_anchor = next((v for k, v in _X_ANCHORS.items() if k.lower() in rule), 0.5)
+    y_anchor = next((v for k, v in _Y_ANCHORS.items() if k.lower() in rule), 0.5)
     return x_anchor, y_anchor

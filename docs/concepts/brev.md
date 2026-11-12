@@ -84,6 +84,16 @@ Phone digits are normalized by stripping spaces and dashes.
 The brev policy knows those two values; anything else — including the postnord carrier's `omit_unless_required` — resolves fail-safe to `always`.
 At least one contact is not mandatory: the terms require only a complete sender designation, and this carrier follows that ruling.
 
+## Engine line and tagline
+
+The engine line — the small bold line at the label's top right — is configurable through `postnord_brev_stamp_pattern`, set on the connection config and overridable per shipment in `options`.
+The value is jinja2 template syntax rendered against a small fixed context: `shipper.company_name`, `shipper.person_name`, `reference` (the shipment's reference field), `stamp` (the rendering time as YYYYMMDDHHMM), `date` (the ISO date), and `year`.
+The default `{{ shipper.company_name }} – {{ stamp }}` prints the sender company — falling back to the person name when the company is unset — beside the rendering time, so `"{{ shipper.company_name }} — {{ reference }}"` reproduces the sender-and-reference form.
+The pattern renders in a sandboxed jinja2 environment, and the rendered text is escaped into the SVG like every other label value.
+Guards fail closed with a field error naming the option: a pattern over 200 characters, an invalid or unsupported template — `{% include %}` among them, for which jinja2 raises a loader `TypeError` rather than a template error — or a render exceeding 80 characters all reject the purchase.
+
+The vertical right-margin tagline is `postnord_brev_label_tagline`, resolved on the same two layers: set text prints centred on the address-window band, reading top to bottom, at most 60 characters, and unset prints no line at all.
+
 ## No tracking, by design
 
 The 1:a-klassbrev inrikes product page states "Spårbart: Nej" (`postnord.se/foretag/skicka/brev-och-paket/1a-klassbrev-inrikes`, accessed 2026-11-10), and the carrier claims no tracking.

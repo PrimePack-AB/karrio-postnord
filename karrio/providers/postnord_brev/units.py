@@ -28,6 +28,8 @@ class ConnectionConfig(lib.Enum):
     postnord_phone_number_policy = lib.OptionEnum(
         "postnord_phone_number_policy", PhoneNumberPolicy
     )
+    postnord_brev_label_tagline = lib.OptionEnum("postnord_brev_label_tagline")
+    postnord_brev_stamp_pattern = lib.OptionEnum("postnord_brev_stamp_pattern")
 
 
 def resolve_phone_number_policy(payload, settings) -> str:
@@ -38,6 +40,27 @@ def resolve_phone_number_policy(payload, settings) -> str:
     raw = option or config or "always"
     value = str(getattr(raw, "value", raw))
     return value if value in ("always", "omit_when_email_suffices") else "always"
+
+
+def _resolved_option(payload, settings, code: str) -> typing.Optional[str]:
+    """The shipment option value when it is a string, else the connection
+    config value; anything else fails safe to ``None``."""
+    option = (payload.options or {}).get(code)
+    if isinstance(option, str):
+        return option
+    config = getattr(settings.connection_config, code)
+    state = getattr(config, "state", None)
+    return state if isinstance(state, str) else None
+
+
+def resolve_label_tagline(payload, settings) -> typing.Optional[str]:
+    """Vertical right-margin tagline; unset on both layers means no line."""
+    return _resolved_option(payload, settings, "postnord_brev_label_tagline")
+
+
+def resolve_stamp_pattern(payload, settings) -> typing.Optional[str]:
+    """Engine-line pattern (jinja2 syntax); unset means the default."""
+    return _resolved_option(payload, settings, "postnord_brev_stamp_pattern")
 
 
 # One letter product in v1: domestic First Class under port payé. The SE-only
