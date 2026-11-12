@@ -14,8 +14,11 @@ import karrio.universal.mappers.rating_proxy as rating_proxy
 class Settings(provider_utils.Settings, rating_proxy.RatingMixinSettings):
     """PostNord Brev (port payé) connection settings."""
 
-    customer_number: typing.Optional[str] = None
-    franking_asset: typing.Optional[str] = None
+    # Karrio's connection-field extractor ships the raw annotation, and the
+    # dashboard renders no input for "typing.Optional[str]", so mapper
+    # settings use the karrio-wide bare `str = None` shape.
+    customer_number: str = None  # type: ignore
+    franking_asset: str = None  # type: ignore
 
     # generic properties
     # id must stay declared: DP.to_object drops undeclared settings keys.
