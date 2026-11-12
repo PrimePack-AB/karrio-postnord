@@ -25,6 +25,19 @@ An asset that decodes to neither SVG nor PNG fails the same way, naming the two 
 The intended source of the franking asset is PostNord's label-blocks page, `postnord.se/foretag/forberedelser/klicheer` (English mirror: `postnord.se/en/business/preparations/label-blocks/`, both accessed 2026-11-10), which publishes the First Class Mail block as EPS and PDF for agreement customers.
 The agreement customer downloading the official asset is the intended user of this setting: PostNord publishes no redistribution licence for the artwork, so the connector never ships it and expects each connection to supply its own.
 
+## Submitting the franking asset
+
+The connect form is a plain text field — karrio carrier settings carry no per-field help text — so this page is the field's reference.
+
+PostNord publishes the kliché as EPS and PDF while the connector accepts SVG or PNG, so converting the downloaded asset is part of the submission:
+
+1. Download the First Class Mail kliché from the klichéer page: `eps/1a-klassbrev-pp-kliche2.eps` or `pdf/1a-klassbrev-pp-kliche.pdf` under the siteassets path in the citation table.
+2. Convert it to SVG or PNG (for example `inkscape 1a-klassbrev-pp-kliche2.eps --export-type=svg`).
+3. Base64 the converted file: `base64 -w0 kliche.svg`.
+4. Paste the result into the Franking Asset field — a bare base64 string or a full `data:image/svg+xml;base64,…` / `data:image/png;base64,…` URI both work.
+
+A submitted value that decodes to neither SVG nor PNG — the raw EPS or PDF, for example — fails at purchase with a field error naming the accepted formats and the download page.
+
 ## Rating and purchase
 
 Rating is static, exactly as for the postnord carrier: one service, `postnord_brev_first_class`, carrying a single Sweden-only zone, so non-SE lanes simply produce no quote — the first, gentlest layer of the domestic gate.
