@@ -23,6 +23,7 @@ METADATA = PluginMetadata(
     is_hub=False,
     services=units.ShippingService,
     options=units.ShippingOption,
+    connection_configs=units.ConnectionConfig,
     service_levels=units.DEFAULT_SERVICES,
     website="https://www.postnord.se",
 )

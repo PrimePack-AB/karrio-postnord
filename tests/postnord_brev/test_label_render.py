@@ -104,7 +104,7 @@ class TestBrevLabelRender(unittest.TestCase):
     def test_shipper_contact_flows_below_sender_block(self):
         contact = "avsandare@example.se · +46701234567"
         # Three sender lines (no address_line2): the contact sits one sender
-        # slot below the last line, at 12.1 + 3 * 2.45 = 19.45.
+        # slot below the last line, at 12.1 + 3 * 2.75 = 20.35.
         svg = render_label(
             models.ShipmentRequest(**ShipmentPayload),
             "20000000",
@@ -113,10 +113,10 @@ class TestBrevLabelRender(unittest.TestCase):
             shipper_contact=contact,
         )
         self.assertIn(
-            '<text x="5" y="19.45" font-size="1.94">' + contact + "</text>", svg
+            '<text x="5" y="20.35" font-size="2.24">' + contact + "</text>", svg
         )
         # A fourth sender line (address_line2) moves the contact down one
-        # more slot to 12.1 + 4 * 2.45 = 21.9 instead of overlapping the block.
+        # more slot to 12.1 + 4 * 2.75 = 23.1 instead of overlapping the block.
         payload = {
             **ShipmentPayload,
             "shipper": {
@@ -134,7 +134,7 @@ class TestBrevLabelRender(unittest.TestCase):
             shipper_contact=contact,
         )
         self.assertIn(
-            '<text x="5" y="21.9" font-size="1.94">' + contact + "</text>", svg
+            '<text x="5" y="23.1" font-size="2.24">' + contact + "</text>", svg
         )
 
     def test_engine_line_renders_when_given(self):
@@ -146,7 +146,7 @@ class TestBrevLabelRender(unittest.TestCase):
             engine_line="A corp. – 202611121435",
         )
         self.assertIn(
-            '<text x="94" y="27.3" font-size="1.76" font-weight="bold" '
+            '<text x="94" y="27.3" font-size="2.06" font-weight="bold" '
             'text-anchor="end">A corp. – 202611121435</text>',
             svg,
         )
@@ -166,7 +166,7 @@ class TestBrevLabelRender(unittest.TestCase):
         )
         self.assertIn(
             '<text transform="translate(95.6 45.8) rotate(90)" '
-            'font-size="1.76" font-weight="bold" text-anchor="middle">'
+            'font-size="2.06" font-weight="bold" text-anchor="middle">'
             "Skicka rätt</text>",
             svg,
         )

@@ -36,6 +36,23 @@ class TestPostNordBrevRegistration(unittest.TestCase):
         metadata = karrio.gateway.providers["postnord_brev"]
         self.assertEqual(metadata.label, "PostNord Brev (Port Payé)")
 
+    def test_connection_configs_are_published(self):
+        # The dashboard's carrier-connection config tab renders only what the
+        # plugin metadata declares; without connection_configs the tab is
+        # absent and no option (phone policy, tagline, stamp pattern) is
+        # settable on the connection.
+        metadata = karrio.gateway.providers["postnord_brev"]
+        self.assertIsNotNone(metadata.connection_configs)
+        published = {member.name for member in metadata.connection_configs}
+        self.assertEqual(
+            published,
+            {
+                "postnord_phone_number_policy",
+                "postnord_brev_label_tagline",
+                "postnord_brev_stamp_pattern",
+            },
+        )
+
     def test_se_lane_offers_the_single_service_without_http(self):
         with patch("karrio.mappers.postnord_brev.proxy.lib.request") as mock:
             rates, messages = (
