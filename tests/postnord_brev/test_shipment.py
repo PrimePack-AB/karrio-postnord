@@ -1,10 +1,12 @@
 """PostNord Brev local shipment flow and guard tests."""
 
 import base64
+import io
 import unittest
 from collections import namedtuple
 from unittest.mock import patch
 
+import pypdf
 import karrio.sdk as karrio
 import karrio.core.models as models
 
@@ -38,19 +40,35 @@ def _errors(response):
 
 
 class TestBrevCreateShipment(unittest.TestCase):
-    def test_generates_svg_label_without_http(self):
+    def test_generates_pdf_label_without_http(self):
         with patch("karrio.mappers.postnord_brev.proxy.lib.request") as mock:
             response = _create(dict(ShipmentPayload))
             mock.assert_not_called()
         details = response.shipment
-        self.assertEqual(details.label_type, "SVG")
+        self.assertEqual(details.label_type, "PDF")
         self.assertEqual(details.carrier_id, "postnord_brev")
         self.assertEqual(details.meta["service_name"], "PostNord Brev First Class (Port Payé)")
+        pdf = base64.b64decode(details.docs.label)
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        page = pypdf.PdfReader(io.BytesIO(pdf)).pages[0]
+        self.assertAlmostEqual(float(page.mediabox.width), 283.46, delta=0.5)
+        self.assertAlmostEqual(float(page.mediabox.height), 510.24, delta=0.5)
+
+    def test_generates_svg_label_when_requested(self):
+        with patch("karrio.mappers.postnord_brev.proxy.lib.request") as mock:
+            response = _create(dict(ShipmentPayload, label_type="SVG"))
+            mock.assert_not_called()
+        details = response.shipment
+        self.assertEqual(details.label_type, "SVG")
         svg = base64.b64decode(details.docs.label).decode()
         self.assertIn('viewBox="0 0 100 180"', svg)
         self.assertIn("20000000", svg)
         self.assertIn("data:image/svg+xml;base64,", svg)
         self.assertIn("1000 g", svg)
+
+    def test_rejects_unsupported_label_type(self):
+        response = _create(dict(ShipmentPayload, label_type="ZPL"))
+        self.assertIn("label_type", _errors(response))
 
     def test_mints_identifier_from_reference_number(self):
         response = _create(dict(ShipmentPayload))
@@ -66,7 +84,11 @@ class TestBrevCreateShipment(unittest.TestCase):
         self.assertRegex(response.shipment.tracking_number, r"^\d{10}$")
 
     def test_customer_number_metadata_overrides_connection(self):
-        payload = {**ShipmentPayload, "metadata": {"postnord_port_paye_customer_number": "12345678"}}
+        payload = {
+            **ShipmentPayload,
+            "metadata": {"postnord_port_paye_customer_number": "12345678"},
+            "label_type": "SVG",
+        }
         response = _create(payload)
         svg = base64.b64decode(response.shipment.docs.label).decode()
         self.assertIn("12345678", svg)
@@ -163,7 +185,7 @@ class TestBrevGuards(unittest.TestCase):
     def test_png_franking_asset_renders_png_uri(self):
         png = base64.b64encode(b"\x89PNG\r\n\x1a\nfakepng").decode()
         gw = karrio.gateway["postnord_brev"].create(dict(_settings, franking_asset=png))
-        response = _create(dict(ShipmentPayload), gw)
+        response = _create(dict(ShipmentPayload, label_type="SVG"), gw)
         svg = base64.b64decode(response.shipment.docs.label).decode()
         self.assertIn("data:image/png;base64,", svg)
 
@@ -171,14 +193,14 @@ class TestBrevGuards(unittest.TestCase):
         gw = karrio.gateway["postnord_brev"].create(
             dict(_settings, franking_asset="data:image/svg+xml;base64," + SyntheticFrankingAsset)
         )
-        response = _create(dict(ShipmentPayload), gw)
+        response = _create(dict(ShipmentPayload, label_type="SVG"), gw)
         svg = base64.b64decode(response.shipment.docs.label).decode()
         self.assertIn("data:image/svg+xml;base64," + SyntheticFrankingAsset, svg)
 
 
 class TestBrevShipperContact(unittest.TestCase):
     def _svg(self, payload, gw=gateway):
-        response = _create(payload, gw)
+        response = _create({**payload, "label_type": "SVG"}, gw)
         return base64.b64decode(response.shipment.docs.label).decode()
 
     def _contact_payload(self, **options):

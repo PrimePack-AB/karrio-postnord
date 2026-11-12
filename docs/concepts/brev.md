@@ -43,15 +43,18 @@ A submitted value that decodes to neither SVG nor PNG — the raw EPS or PDF, fo
 Rating is static, exactly as for the postnord carrier: one service, `postnord_brev_first_class`, carrying a single Sweden-only zone, so non-SE lanes simply produce no quote — the first, gentlest layer of the domestic gate.
 Prices come from the connection's service levels or a server-side rate sheet.
 Purchase is the normal two-step karrio flow: fetch rates, then buy with the selected rate.
-The returned label is one 100×180 mm SVG document with `label_type` forced to `SVG` by the provider; a request-side PDF, ZPL, or PNG label type is not produced.
+The returned label honours the request's `label_type`: `PDF` (the default) receives a converted one-page 100×180 mm PDF, `SVG` receives the raw SVG document, and any other requested type fails with a field error naming the two.
 
 ## The label
 
-The label document is a single-root, well-formed SVG: a `<style>` element carrying an `@page` rule for 100 mm × 180 mm sits inside the svg root.
+The label is rendered once as a single-root, well-formed SVG: a `<style>` element carrying an `@page` rule for 100 mm × 180 mm sits inside the svg root.
 Standalone `.svg` consumers therefore get a valid document, and HTML print wrappers pick up the page sizing from the embedded style.
+For the default PDF output the SVG converts through svglib/reportlab — pure Python, so no system cairo or fonts are involved — with the franking asset re-drawn into its slot as native vector (SVG asset) or raster (PNG asset) geometry, because svglib cannot load data-URI images; the slot rect and aspect rule come from the template itself, so the template stays the single source of the label geometry.
 All label text is fixed Swedish (Avsändare, Kundnummer, Vikt, Datum), and the weight prints in grams whatever unit the request declared.
-The franking asset is inlined as a base64 data URI, so the label is self-contained and prints offline, and the kundnummer prints under the franking mark.
+The franking asset is inlined as a base64 data URI in the SVG form, so that document is self-contained and prints offline, and the kundnummer prints under the franking mark.
 A shipper contact line prints under the sender block when the shipper has contact data (see below).
+
+One platform caveat: karrio servers store `label_type` through a fixed PDF/ZPL/PNG choice set, so an `SVG` label requested through a server deployment is persisted as PDF bytes mismatch — request the default PDF there; explicit SVG labels are for direct SDK consumers, whose persistence has no such gate.
 
 ## Limits enforced at purchase
 

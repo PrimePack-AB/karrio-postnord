@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "karrio_postnord"
-version = "2026.11.1"
+version = "2026.11.2"
 description = "Karrio Connector Plugin - PostNord Shipping Extension"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,6 +20,7 @@ classifiers = [
 dependencies = [
     "karrio",
     "jinja2",
+    "svglib",
 ]
 
 [project.urls]

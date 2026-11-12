@@ -28,7 +28,7 @@ All settled with the product owner on 2026-11-10:
 - Connector-side label rendering; approach B, self-contained provider (below).
 - Franking basis is the port payé agreement; the label carries the First Class kliché plus kundnummer.
 - One service in v1: domestic First Class, SE→SE only.
-- The label document is SVG only, with `label_type="SVG"` forced by the provider.
+- The label document is SVG internally, with the returned `label_type` honouring the request: PDF (converted) by default since 2026-11-12, or the raw SVG when explicitly requested.
 - The label text is hard-coded Swedish and the weight renders in grams regardless of input units.
 - Kundnummer resolution: shipment metadata override, else the connection's required `customer_number`; unresolvable is a hard failure.
 - The franking asset is consumer-supplied in v1 (fail-closed when absent); a connector-drawn mark is parked pending PostNord's answer.
@@ -52,7 +52,7 @@ Approach B (self-contained provider) was chosen over riding the SDK's `ShippingM
 The SDK facts the approach rests on were verified against the fork checkout at `develop` 92605aa53 (snapshot-2026.11.05.6) on 2026-11-10:
 
 - The upstream `generic` connector is the only no-HTTP shipment precedent and composes `RatingMixinProxy.get_rates` with `ShippingMixinProxy.create_shipment`; its tracking-number minting (parcel `reference_number`, else a uuid-derived integer string) is the scheme this design mirrors.
-- The SDK's `LabelType` enum knows PDF, ZPL and PNG only, but a provider-returned `label_type` wins over the request at persistence (`buy_shipment_label` merges response details over the payload), and the fork's admin label-preview tests exercise SVG output through the whole local path — so provider-forced SVG needs no server changes.
+- The SDK's `LabelType` enum knows PDF, ZPL and PNG only. This note originally claimed a provider-returned `label_type` wins at persistence so provider-forced SVG needed no server changes; the 2026-11-12 live deployment falsified that — the server's `label_type` ChoiceField (choices from the enum, default PDF) drops the provider's `"SVG"` during purchase validation, so SVG bytes were stored under `label_type='PDF'` and the dashboard preview served them to PDF.js. The connector now converts instead: PDF (svglib/reportlab, pure Python, the franking asset re-drawn as native geometry because svglib drops data-URI images) is the default label type, with SVG produced only on explicit request for direct SDK consumers.
 - Purchase requires a persisted rate (`require_selected_rate`), but the fetch can be entirely local; the postnord carrier already rates this way, so the seeded ServiceLevel is the existing mechanism.
 - Per-service capability gating does not exist in karrio, which is the decisive reason brev is its own carrier.
 - jinja2 is not a declared SDK dependency (it reaches the server only transitively), so the connector declares it explicitly in `[project]` dependencies; it is pip-resolvable and adds no fork coupling — the `[tool.primepack] karrio-ref` pin is untouched.

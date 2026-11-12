@@ -3,7 +3,11 @@
 No PostNord API is contacted: the flow guards the port payé letter contract
 (Särskilda villkor 1:a-klassbrev inrikes, gäller fr o m 2025-01-01, §1.3 and
 the format limits; see the design note), renders the SVG label locally, and
-returns shipment details with the provider-forced ``SVG`` label type.
+returns it in the requested format — PDF (converted with pure-Python
+svglib/reportlab) by default, or the raw SVG document when ``SVG`` is
+requested explicitly, which direct SDK consumers can persist; the karrio
+server's label_type choices (PDF, ZPL, PNG) cannot store SVG, so server
+deployments should request the default.
 """
 
 import base64
@@ -14,7 +18,7 @@ import uuid
 import karrio.lib as lib
 import karrio.core.models as models
 
-from karrio.providers.postnord_brev.label import render_label
+from karrio.providers.postnord_brev.label import render_label, svg_to_pdf
 from karrio.providers.postnord_brev.units import resolve_phone_number_policy
 
 WEIGHT_UNIT_GRAMS = {"KG": 1000.0, "G": 1.0, "LB": 453.592, "OZ": 28.3495}
@@ -47,23 +51,34 @@ def create_shipment(request, settings):
         "postnord_port_paye_customer_number"
     ) or settings.customer_number
 
+    asset_href = _franking_asset_href(settings.franking_asset)
     svg = render_label(
         payload,
         customer_number,
         int(round(_weight_grams(parcel))),
-        _franking_asset_href(settings.franking_asset),
+        asset_href,
         shipper_contact=_shipper_contact(payload, settings),
     )
+
+    requested = str(payload.label_type or "PDF").upper()
+    if requested not in ("PDF", "SVG"):
+        raise lib.exceptions.FieldError(
+            {"label_type": f"must be PDF or SVG for this carrier (got {requested})"}
+        )
+    if requested == "SVG":
+        label_bytes, label_type = svg.encode("utf-8"), "SVG"
+    else:
+        label_bytes, label_type = svg_to_pdf(svg, asset_href), "PDF"
 
     details = models.ShipmentDetails(
         carrier_name=settings.carrier_name,
         carrier_id=settings.carrier_id,
-        label_type="SVG",
+        label_type=label_type,
         tracking_number=tracking_number,
         shipment_identifier=tracking_number,
         meta=dict(service_name=SERVICE_NAME),
         docs=models.Documents(
-            label=base64.b64encode(svg.encode("utf-8")).decode("utf-8")
+            label=base64.b64encode(label_bytes).decode("utf-8")
         ),
     )
     return lib.Deserializable(details)
