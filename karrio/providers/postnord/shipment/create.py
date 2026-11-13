@@ -1249,7 +1249,13 @@ def shipment_request(
                                             value=package.length.CM, unit="CMT"
                                         ),
                                     )
-                                    if any([package.height, package.width, package.length])
+                                    if any(
+                                        [
+                                            package.height.value,
+                                            package.width.value,
+                                            package.length.value,
+                                        ]
+                                    )
                                     else None
                                 ),
                             )

@@ -71,6 +71,36 @@ class TestPostNordShipment(unittest.TestCase):
             "65", serialized["shipment"][0]["service"]["additionalServiceCode"]
         )
 
+    def test_create_shipment_request_without_dimensions_omits_dimensions(self):
+        parcel = {
+            key: value
+            for key, value in ShipmentPayload["parcels"][0].items()
+            if key not in ("width", "height", "length")
+        }
+        payload = {**ShipmentPayload, "parcels": [parcel]}
+        request = gateway.mapper.create_shipment_request(
+            models.ShipmentRequest(**payload)
+        )
+        item = lib.to_dict(request.serialize())["shipment"][0]["goodsItem"][0][
+            "items"
+        ][0]
+        self.assertNotIn("dimensions", item)
+        self.assertEqual(item["grossWeight"], {"value": 1.5, "unit": "KGM"})
+
+    def test_create_shipment_request_with_dimensions_sends_dimensions(self):
+        request = gateway.mapper.create_shipment_request(self.ShipmentRequest)
+        item = lib.to_dict(request.serialize())["shipment"][0]["goodsItem"][0][
+            "items"
+        ][0]
+        self.assertEqual(
+            item["dimensions"],
+            {
+                "height": {"value": 10.0, "unit": "CMT"},
+                "width": {"value": 20.0, "unit": "CMT"},
+                "length": {"value": 30.0, "unit": "CMT"},
+            },
+        )
+
     def test_create_shipment(self):
         with patch("karrio.mappers.postnord.proxy.lib.request") as mock:
             mock.return_value = "{}"
