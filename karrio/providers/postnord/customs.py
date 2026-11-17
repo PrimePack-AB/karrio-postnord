@@ -50,7 +50,8 @@ def customs_declaration_request(
     Both endpoints take an array of declaration objects (swagger
     ``customsDeclarations``), each carrying exactly one id (``ids``
     maxItems 1) and one declaration branch; the builder enforces those
-    envelope constraints plus the 13-line limit, then carries the PDF
+    envelope constraints plus the 13-line limit and the shared HS
+    tariff-number format rule, then carries the PDF
     variant's rendering params as query-string entries on the ctx for
     ``proxy.create_customs_declaration_pdf``; submitting the same request
     through the digital ``create_customs_declaration`` leaves the ctx
@@ -87,6 +88,11 @@ def customs_declaration_request(
         len(branch.detailedDescription or []),
         field=f"{branches[0]}.detailedDescription",
         item_id=ids[0].id,
+    )
+    provider_units.enforce_hs_tariff_numbers(
+        branch.detailedDescription or [],
+        f"{branches[0]}.detailedDescription",
+        attribute="hsTariffNumber",
     )
 
     return lib.Serializable(

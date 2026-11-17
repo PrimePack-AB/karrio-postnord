@@ -675,6 +675,9 @@ def _customs_declaration(
     )
     provider_units.enforce_declaration_registration_numbers(options, shipper)
     provider_units.enforce_customs_line_content(customs.commodities)
+    provider_units.enforce_hs_tariff_numbers(
+        customs.commodities, "customs.commodities"
+    )
 
     total_gross_weight = _total_gross_weight(parcel_weight, customs.commodities)
     category = (
@@ -726,6 +729,9 @@ def _customs_declaration_cn23(
     )
     provider_units.enforce_declaration_registration_numbers(options, shipper)
     provider_units.enforce_customs_line_content(customs.commodities)
+    provider_units.enforce_hs_tariff_numbers(
+        customs.commodities, "customs.commodities"
+    )
 
     total_gross_weight = _total_gross_weight(parcel_weight, customs.commodities)
     total_value = _total_value(customs.commodities)
@@ -773,7 +779,9 @@ def _customs_invoice_errors(
     seller and buyer ``contacts.name``/``phoneNo``, and per-line
     ``hsTariffNumber`` and ``countryOfOrigin`` are required by
     Booking APIs 3.5.29.1 and cannot be derived when absent from the unified
-    payload.
+    payload. A present ``hs_code`` must additionally satisfy the shared HS
+    tariff format rule (``hs_tariff_number_errors``), which cannot fire on
+    the same line as the required-field check above it.
     """
     required = "is required for a PostNord customs invoice"
     party_errors = {
@@ -794,6 +802,9 @@ def _customs_invoice_errors(
         )
         if not getattr(commodity, field)
     }
+    hs_errors = provider_units.hs_tariff_number_errors(
+        customs.commodities, "customs.commodities"
+    )
 
     return {
         **(
@@ -813,6 +824,7 @@ def _customs_invoice_errors(
         ),
         **party_errors,
         **line_errors,
+        **hs_errors,
     }
 
 

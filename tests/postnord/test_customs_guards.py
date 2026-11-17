@@ -100,5 +100,94 @@ class TestPostNordCustomsInvoiceLineLimit(unittest.TestCase):
         )
 
 
+class TestPostNordHsTariffNumbers(unittest.TestCase):
+    # Every booking branch sends the unified hs_code as the wire
+    # hsTariffNumber: CN22 and CN23 raise through the shared guard, the
+    # customs invoice merges the same errors into its collected field
+    # errors, and the declaration proxy guards the caller-built lines.
+    BookingBranches = [
+        ("customsDeclarationCN22", CustomsShipmentPayload),
+        ("customsDeclarationCN23", InternationalParcelCN23Payload),
+        ("customsInvoice", CustomsInvoiceShipmentPayload),
+    ]
+    InvalidCodes = ["3304", "3304 99", "3304.99"]
+    ValidCodes = ["330499", "33040000", "3304990000"]
+
+    def setUp(self):
+        self.maxDiff = None
+
+    def _rejects_before_send(self, payload: dict, field: str) -> None:
+        with patch("karrio.mappers.postnord.proxy.lib.request") as mock:
+            shipment, messages = (
+                karrio.Shipment.create(models.ShipmentRequest(**payload))
+                .from_(gateway)
+                .parse()
+            )
+            mock.assert_not_called()
+        self.assertIsNone(shipment)
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0].code, "SHIPPING_SDK_FIELD_ERROR")
+        self.assertEqual(messages[0].details[field], HS_FORMAT_ERROR)
+
+    def test_booking_branches_reject_malformed_hs_tariff_numbers(self):
+        # Too short, spaced, and dotted codes all reject before send: an
+        # all-digit string of at least six characters is the only accepted
+        # shape.
+        for branch, payload in self.BookingBranches:
+            for hs_code in self.InvalidCodes:
+                with self.subTest(branch=branch, hs_code=hs_code):
+                    self._rejects_before_send(
+                        _with_hs_code(payload, hs_code),
+                        "customs.commodities[0].hs_code",
+                    )
+
+    def test_booking_branches_accept_valid_hs_tariff_numbers(self):
+        # Codes of six, eight, and ten digits pass and ride the wire
+        # verbatim on every branch.
+        for branch, payload in self.BookingBranches:
+            for hs_code in self.ValidCodes:
+                with self.subTest(branch=branch, hs_code=hs_code):
+                    request = gateway.mapper.create_shipment_request(
+                        models.ShipmentRequest(**_with_hs_code(payload, hs_code))
+                    )
+                    declaration = lib.to_dict(request.serialize())["shipment"][0][
+                        branch
+                    ]
+                    self.assertEqual(
+                        declaration["detailedDescription"][0]["hsTariffNumber"],
+                        hs_code,
+                    )
+
+    def test_proxy_rejects_malformed_hs_tariff_number(self):
+        # The proxy guard fires at build time — no HTTP call — and names
+        # the offending line through the wire field name.
+        with patch("karrio.mappers.postnord.proxy.lib.request") as mock:
+            with self.assertRaises(lib.exceptions.FieldError) as raised:
+                customs.customs_declaration_request(
+                    _proxy_declaration("3304"), gateway.settings
+                )
+            mock.assert_not_called()
+        self.assertEqual(
+            raised.exception.details,
+            {
+                "customsDeclarationCN22.detailedDescription[0].hsTariffNumber": (
+                    HS_FORMAT_ERROR
+                )
+            },
+        )
+
+    def test_proxy_accepts_valid_hs_tariff_number(self):
+        request = customs.customs_declaration_request(
+            _proxy_declaration("330499"), gateway.settings
+        )
+        body = lib.to_dict(request.serialize())
+        self.assertEqual(
+            body[0]["customsDeclarationCN22"]["detailedDescription"][0][
+                "hsTariffNumber"
+            ],
+            "330499",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

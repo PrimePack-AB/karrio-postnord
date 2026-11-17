@@ -751,6 +751,49 @@ def enforce_customs_line_content(commodities: typing.List[models.Commodity]) -> 
         )
 
 
+def hs_tariff_number_errors(
+    lines: typing.Iterable, line_field: str, attribute: str = "hs_code"
+) -> typing.Dict[str, str]:
+    """Field errors for HS tariff numbers that are present but malformed.
+
+    PostNord requires at least six digits with no spaces (the NVIT regime
+    under NCTS phase 5); the booking swagger states no pattern constraint
+    and its example is bare digits ("33040000"). A value that is present
+    must therefore be all digits and at least six characters long. Absent
+    values are not errors here: the customs invoice branch rejects
+    absence through its own required-field checks, and the CN22 and CN23
+    branches send no ``hsTariffNumber`` element for them. ``attribute``
+    reads the commodity's ``hs_code`` on the booking paths and the wire
+    ``hsTariffNumber`` on the declaration proxy.
+    """
+    return {
+        f"{line_field}[{index}].{attribute}": (
+            "HS tariff number must be at least six digits "
+            "with no spaces or separators"
+        )
+        for index, line in enumerate(lines)
+        if getattr(line, attribute)
+        and not re.fullmatch(r"\d{6,}", getattr(line, attribute))
+    }
+
+
+def enforce_hs_tariff_numbers(
+    lines: typing.Iterable, line_field: str, attribute: str = "hs_code"
+) -> None:
+    """Raise a FieldError when a sent HS tariff number is malformed.
+
+    One guard shared by the CN22 and CN23 booking builders and the
+    post-booking declaration proxy; the customs invoice builder merges
+    ``hs_tariff_number_errors`` into its collected field errors instead.
+    All offending lines are named at once.
+    """
+    errors = hs_tariff_number_errors(lines, line_field, attribute)
+    if errors:
+        raise lib.exceptions.FieldError(
+            {field: message for field, message in errors.items()}
+        )
+
+
 def enforce_customs_option_placement(options: dict) -> None:
     """Raise a FieldError when customs option keys sit in shipment options.
 
