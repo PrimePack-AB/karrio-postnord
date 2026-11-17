@@ -882,6 +882,9 @@ def _customs_invoice(
     apply to customs invoices; the EORI resolves through the shared
     option-then-address helper (``resolve_eori_number``).
     """
+    provider_units.enforce_customs_declaration_lines(
+        len(customs.commodities), field="customs.commodities"
+    )
     provider_units.enforce_customs_line_content(customs.commodities)
     errors = _customs_invoice_errors(shipper, recipient, customs, invoice_number)
     if errors:
