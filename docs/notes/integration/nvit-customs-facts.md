@@ -82,8 +82,8 @@ Two booking fields relevant to NVIT remain unmapped by the connector: the envelo
 | Same goods line in several parcels | One row whose `refItemIds` lists every containing parcel |
 | Several lines in one parcel | Several rows referencing that parcel's item id |
 | Net weight absent on some lines | Deterministic fallback (net equals gross, or reject), not silence |
-| HS shorter than six digits or containing spaces | Validate and reject before sending |
-| Row count above the branch limit | Extend the 13-line guard once the invoice limit is verified |
+| HS shorter than six digits or containing spaces | Implemented (2026-11-17): rejected before send on every customs branch |
+| Row count above the branch limit | Implemented (2026-11-17): the booking invoice branch is guarded at the shared 13; the actual invoice-branch limit remains unverified — Booking swagger 3.5.29.1 states no maxItems on any customs array |
 | Return from Norway | `reasonForExportation` 1040 and `returnHsTariffNumber` rows |
 | Missing currency for line values | No silent currency guessing |
 
@@ -99,6 +99,12 @@ Every goodsItem used the constant `itemId="0"`, which asks PostNord to allocate 
 `Parcel.items` was not read by the booking mapping.
 
 Ported-note update (2026-10-13): the branch split is now letters → CN22, International Parcel (91) → CN23 unconditionally, every other service → customs invoice; the per-line net-weight, packaging, split-shipment, and return-code gaps above remain open.
+
+Ported-note update (2026-11-17): every claim in this note was re-verified against connector 2026.11.5 and held.
+The booking customs-invoice branch was found outside the shared 13-line guard and is now inside it.
+HS tariff format validation (at least six digits, no separators) is now enforced before send on the CN22, CN23, invoice, and proxy paths.
+The SDK `Commodity` model carries a single weight field, so a per-line net weight that differs from gross is not expressible from a standard karrio payload; net remains equal to gross until a metadata convention is designed.
+`Parcel.items` is modelled in the SDK but still unread by the booking mapping, and `itemId` stays `"0"`.
 
 ## Interim path
 
