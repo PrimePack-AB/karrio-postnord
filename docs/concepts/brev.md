@@ -19,6 +19,16 @@ This carrier serves the other lane: the sender who keeps franking in-house under
 What that lane requires of the sender is the marking set the Särskilda villkor för 1:a-klassbrev inrikes (§1.3) makes mandatory — recipient name and address, one clear and complete Swedish sender designation (the payment-responsible party), and the franking designation per the kliché from postnord.se — which is exactly what this label produces and the guards enforce, so declining Frankeringsservice adds no marking obligation on this carrier's mail.
 One scope difference: Frankeringsservice covers utrikes letters as well, while this carrier is domestic Sweden only.
 
+## Submitting the letters: the ELIN fakturaunderlag
+
+The connector's part ends at the label: nothing in the flow reports the letters to PostNord, so the sender carries a manual submission duty on every mailing.
+The terms state it as §2.2 (Fakturaunderlag och Transportsedel): before every inlämning a completed electronic fakturaunderlag must always be sent to PostNord, and a transportsedel must accompany the letters at the inlämning (Särskilda villkor för Brev Utrikes, ej spårbart (1:a-klassbrev), gäller fr o m 2026-05-04, §2.2 — the held first-party copy, whose §-references are verified against it; the ELIN page states the same rule for letter submissions generally).
+The underlag is made in ELIN, PostNord's Elektroniska fakturaunderlag tool (`postnord.se/vara-verktyg/elektroniska-fakturaunderlag/`, accessed 2026-11-19): the sender logs into the PostNord Portal — agreement customers register interest and receive portal access, account type Business — and creates the fakturaunderlag from saved templates and submits it digitally.
+The transportsedel is generated automatically; print it and send it along with the letters at inlämning, to the staff at the service location or to the driver at pickup.
+The tool is free for agreement customers holding a credit agreement on letter services (kreditavtal på brevtjänster), and physical fakturaunderlag were discontinued on 1 January 2022, so ELIN is the only form the underlag takes.
+The terms also bill defensively: when a submitted item's design or information does not match the completed fakturaunderlag, PostNord may charge per the price list for the service the item actually meets the conditions for (§5.2), so the underlag should be made to match what is submitted.
+One number-format quirk the ELIN FAQ flags: the tool expects an 8-digit kundnummer and offers a conversion function under its saved-details settings when yours has nine digits.
+
 ## Connection settings
 
 | Setting | Required | Description |
