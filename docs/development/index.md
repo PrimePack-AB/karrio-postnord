@@ -152,5 +152,5 @@ A manual browser download can be recorded later by saving the PDF under the loca
 | Skicka rätt med PostNord, 2026-01-26 | `postnord.se/siteassets/pdf/ovrigt/skicka-ratt-med-postnord-20260126.pdf` | `vendor/docs/skicka-ratt-med-postnord-20260126.pdf` |
 | Särskilda villkor för Svarspost inrikes, gäller fr o m 2023-05-02 | `postnord.se/foretag/priser-och-villkor/tjanstevillkor-avtalskunder` | — |
 
-Three further citations name pages with no downloadable document: the klichéer / label-blocks pages `postnord.se/foretag/forberedelser/klicheer` and `postnord.se/en/business/preparations/label-blocks/` (the franking-asset download source), and the 1:a-klassbrev inrikes product page `postnord.se/foretag/skicka/brev-och-paket/1a-klassbrev-inrikes`.
-All of the above were accessed 2026-11-10.
+Four further citations name pages with no downloadable document: the klichéer / label-blocks pages `postnord.se/foretag/forberedelser/klicheer` and `postnord.se/en/business/preparations/label-blocks/` (the franking-asset download source), the 1:a-klassbrev inrikes product page `postnord.se/foretag/skicka/brev-och-paket/1a-klassbrev-inrikes`, and the Frankeringsservice page `postnord.se/foretag/foretagslosningar/posttjanster/frankeringsservice/` with its English mirror `postnord.se/en/business/business-solutions/mail-services/franking-service/` (the subscription franking service the brev page distinguishes self-franking from).
+The first three were accessed 2026-11-10; the Frankeringsservice pages, 2026-11-19.

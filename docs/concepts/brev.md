@@ -12,6 +12,13 @@ Label generation is local, by design, for the same reasons the postnord carrier'
 There is no host to point at; the connection's `test_mode` flag exists as a generic karrio setting but selects nothing.
 What an API would otherwise validate — the lane, the letter format, the marking — is enforced by the guards below before any label is rendered.
 
+## Self-franking, not Frankeringsservice
+
+PostNord's Frankeringsservice is the subscription lane: an abonnemang billed monthly in advance, ordered in Företagsportalen as an agreement customer, under which franking is delegated to PostNord — the sender marks each envelope with PostNord's barcode (Frankeringsservice streckkod A, which PostNord derives from the kundnummer) and a Swedish sender matching the payment-responsible party, and PostNord then prices every item by weight and destination country, covering both 1:a-klassbrev inrikes and utrikes (`postnord.se/foretag/foretagslosningar/posttjanster/frankeringsservice/`, accessed 2026-11-19).
+This carrier serves the other lane: the sender who keeps franking in-house under the port payé agreement and pays postage against invoice through the e-fakturaunderlag, with no abonnemang, no PostNord-issued barcode, and no API.
+What that lane requires of the sender is the marking set the Särskilda villkor för 1:a-klassbrev inrikes (§1.3) makes mandatory — recipient name and address, one clear and complete Swedish sender designation (the payment-responsible party), and the franking designation per the kliché from postnord.se — which is exactly what this label produces and the guards enforce, so declining Frankeringsservice adds no marking obligation on this carrier's mail.
+One scope difference: Frankeringsservice covers utrikes letters as well, while this carrier is domestic Sweden only.
+
 ## Connection settings
 
 | Setting | Required | Description |
