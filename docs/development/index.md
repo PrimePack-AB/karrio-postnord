@@ -142,6 +142,7 @@ When PostNord publishes a new specification version, record its title, version, 
 
 The `postnord_brev` carrier (see [the brev concepts page](../concepts/brev.md) and the [design note](../notes/integration/postnord-brev-port-paye-design.md)) rests on PostNord's customer-facing service terms and pages rather than on API specifications.
 The direct PDF downloads below return Cloudflare 403 challenges to automated fetches (observed 2026-11-10 from this environment's `curl` with a browser User-Agent and two fetching services), so no local copies are held and no digests are recorded.
+The challenge covers HTML pages too, not only downloads: a plain HTTP fetching service received 403 for the Frankeringsservice page on 2026-11-19, while a rendering reader service retrieved its content in full — so page citations remain obtainable through a rendering fetch even though direct fetches fail.
 The documents are cited by title and effective date, with the source column giving the listing page or direct URL; no document copy was obtained, so no claim is made about any version stated inside them.
 The listing page confirms the editions: the service-terms listing at `postnord.se/foretag/priser-och-villkor/tjanstevillkor-avtalskunder` (accessed 2026-11-10) names the 1:a-klassbrev inrikes Särskilda villkor as gällande fr o m 2025-01-01.
 A manual browser download can be recorded later by saving the PDF under the local path in the table and adding its SHA-256 per the conventions above; live URL discovery is documented in the design note's citations section.
