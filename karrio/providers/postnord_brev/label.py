@@ -25,6 +25,7 @@ from lxml import etree
 from PIL import Image, UnidentifiedImageError
 from reportlab.graphics import renderPDF
 from reportlab.graphics.shapes import Group, Image as RLImage
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from svglib.svglib import svg2rlg
 
 _TEMPLATE_DIR = pathlib.Path(__file__).resolve().parent / "templates"
@@ -44,6 +45,16 @@ _X_ANCHORS = {"xMin": 0.0, "xMid": 0.5, "xMax": 1.0}
 # the slot top) is 0 and yMax (align to the slot bottom) is 1.
 _Y_ANCHORS = {"yMin": 0.0, "yMid": 0.5, "yMax": 1.0}
 
+# The shipper contact line starts at x=5 in the sender column and must end
+# before the Kundnummer column at x=38, keeping a 1 mm gap. Widths are
+# measured in Helvetica, the face svglib draws the PDF in; the SVG's
+# preferred condensed faces are narrower, so a fit in Helvetica fits both.
+CONTACT_FONT = "Helvetica"
+CONTACT_MAX_WIDTH = 32.0
+CONTACT_FONT_SIZE = 2.24
+CONTACT_MIN_FONT_SIZE = 1.8
+_ELLIPSIS = "\u2026"
+
 
 def render_label(
     shipment,
@@ -56,16 +67,36 @@ def render_label(
     tagline: Optional[str] = None,
 ) -> str:
     """Render the brev label SVG for an already-guarded shipment payload."""
+    contact_text, contact_size = (
+        fit_contact_line(shipper_contact) if shipper_contact else (None, None)
+    )
     return _env.get_template("label.svg.j2").render(
         shipment=shipment,
         customer_number=customer_number,
         weight_grams=weight_grams,
         franking_asset_href=franking_asset_href,
         ship_date=ship_date or datetime.date.today().isoformat(),
-        shipper_contact=shipper_contact,
+        shipper_contact=contact_text,
+        shipper_contact_size=contact_size,
         engine_line=engine_line,
         tagline=tagline,
     )
+
+
+def fit_contact_line(text: str) -> Tuple[str, float]:
+    """Fit the contact line to its column: shrink the font down to
+    ``CONTACT_MIN_FONT_SIZE``, then ellipsize what still does not fit."""
+    width = stringWidth(text, CONTACT_FONT, CONTACT_FONT_SIZE)
+    if width <= CONTACT_MAX_WIDTH:
+        return text, CONTACT_FONT_SIZE
+    size = round(CONTACT_FONT_SIZE * CONTACT_MAX_WIDTH / width, 2)
+    if size >= CONTACT_MIN_FONT_SIZE and stringWidth(text, CONTACT_FONT, size) <= CONTACT_MAX_WIDTH:
+        return text, size
+    size = CONTACT_MIN_FONT_SIZE
+    kept = text
+    while kept and stringWidth(kept + _ELLIPSIS, CONTACT_FONT, size) > CONTACT_MAX_WIDTH:
+        kept = kept[:-1]
+    return kept + _ELLIPSIS, size
 
 
 def svg_to_pdf(svg: str, franking_asset_href: str) -> bytes:

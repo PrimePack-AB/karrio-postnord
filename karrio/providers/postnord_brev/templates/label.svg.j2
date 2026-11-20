@@ -1,7 +1,7 @@
 {#- PostNord Brev (port payé) First Class label: Swedish-fixed, PART 1 only;
     the lower canvas stays clear for PostNord's sorting-code zone. Context:
     shipment, customer_number, weight_grams, franking_asset_href, ship_date,
-    shipper_contact, stamp. Ported from the engine template per the design note. -#}
+    shipper_contact, shipper_contact_size, stamp. Ported from the engine template per the design note. -#}
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 180" width="100mm" height="180mm"
      preserveAspectRatio="xMinYMin"
      font-family="'Arial Narrow', 'Liberation Sans Narrow', 'Roboto Condensed', Arial, Helvetica, sans-serif"
@@ -32,9 +32,10 @@
     <text x="5" y="{{ 12.1 + loop.index0 * 2.75 }}" font-size="2.42" font-weight="bold">{{ line }}</text>
     {% endfor %}
 
-    <!-- Shipper contact (email, phone per policy) -->
+    <!-- Shipper contact: e-mail, else phone; fitted to the sender column by
+         label.fit_contact_line so it ends left of Kundnummer (x=38) -->
     {% if shipper_contact %}
-    <text x="5" y="{{ 12.1 + (sender_lines | length) * 2.75 }}" font-size="2.24">{{ shipper_contact }}</text>
+    <text id="shipper-contact" x="5" y="{{ 12.1 + (sender_lines | length) * 2.75 }}" font-size="{{ shipper_contact_size }}">{{ shipper_contact }}</text>
     {% endif %}
 
     <!-- Franking asset (port payé kliché) as inline data URI: 32 x 18 mm, right-aligned -->
