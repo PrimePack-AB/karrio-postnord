@@ -98,7 +98,8 @@ Resolution takes the shipment metadata `postnord_port_paye_customer_number`, els
 ## Shipper contact
 
 The shipper's e-mail prints whenever present, and its phone number prints only when it has no e-mail (phone digits normalized by stripping spaces and dashes); the recipient's e-mail and phone number never print.
-This follows the product-owner ruling of 2026-11-20 and holds whatever `postnord_phone_number_policy` says: brev connections still accept that option for parity with the postnord carrier, but no brev request is sent anywhere, so it has no effect on this carrier.
+This follows the product-owner ruling of 2026-11-20.
+Brev connections do not declare `postnord_phone_number_policy` (removed 2026-11-20, since no policy could change this line); a connection config or shipment option still carrying it is ignored, not refused.
 The line is fitted to the sender column so it always ends before the Kundnummer column: it shrinks from 2.24 mm down to 1.8 mm, measured in Helvetica (the face the PDF is drawn in), and a contact still too long at 1.8 mm is cut with an ellipsis.
 At least one contact is not mandatory: the terms require only a complete sender designation, and this carrier follows that ruling.
 
