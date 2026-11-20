@@ -22,9 +22,9 @@ from typing import Optional, Tuple
 
 import jinja2
 from lxml import etree
+from PIL import Image, UnidentifiedImageError
 from reportlab.graphics import renderPDF
 from reportlab.graphics.shapes import Group, Image as RLImage
-from reportlab.lib.utils import ImageReader
 from svglib.svglib import svg2rlg
 
 _TEMPLATE_DIR = pathlib.Path(__file__).resolve().parent / "templates"
@@ -37,6 +37,7 @@ _env = jinja2.Environment(
 
 _SVG_NS = "http://www.w3.org/2000/svg"
 _PNG_MAGIC = b"\x89PNG"
+_SVG_MAGICS = (b"<svg", b"<?xml")
 _X_ANCHORS = {"xMin": 0.0, "xMid": 0.5, "xMax": 1.0}
 # The overlay's base position is top-aligned in the slot; the anchor
 # multiplies the vertical slack pushing the content DOWN, so yMin (align to
@@ -111,9 +112,11 @@ def _asset_overlay(href: str, page_width: float, page_height: float, slot) -> Gr
         content = Group(drawing)
         natural_w, natural_h = drawing.width, drawing.height
     elif asset is not None and asset.startswith(_PNG_MAGIC):
-        reader = ImageReader(io.BytesIO(asset))
-        pw, ph = (float(v) for v in reader.getSize())
-        content = Group(RLImage(0, 0, pw, ph, reader))
+        image = png_image(asset)
+        pw, ph = (float(v) for v in image.size)
+        # renderPDF draws an Image node only from a PIL image or a file
+        # path; any other source (e.g. an ImageReader) raises TypeError.
+        content = Group(RLImage(0, 0, pw, ph, image))
         natural_w, natural_h = pw, ph
     else:
         # The purchase guard already rejects undecodable assets; an asset
@@ -147,9 +150,37 @@ def _decode_asset(href: str) -> Optional[bytes]:
         return None
 
 
+def png_image(asset: bytes) -> Image.Image:
+    """Decode a PNG asset into a PIL image the PDF renderer can draw.
+
+    renderPDF draws it as an inline image, which carries no alpha channel,
+    so transparency is flattened onto white; 16-bit and 32-bit grey are
+    scaled to 8 bits rather than clipped, and any other mode becomes RGB.
+    Raises ValueError when the bytes are not a decodable PNG.
+    """
+    if not asset.startswith(_PNG_MAGIC):
+        raise ValueError("the asset is not a PNG")
+    try:
+        image = Image.open(io.BytesIO(asset))
+        image.load()
+    except (UnidentifiedImageError, OSError, SyntaxError) as error:
+        raise ValueError(f"the PNG asset does not decode: {error}") from error
+    if image.mode in ("1", "L", "RGB"):
+        return image
+    if image.mode in ("RGBA", "LA", "PA") or "transparency" in image.info:
+        rgba = image.convert("RGBA")
+        flattened = Image.new("RGB", rgba.size, "white")
+        flattened.paste(rgba, mask=rgba.getchannel("A"))
+        return flattened
+    if image.mode.startswith("I"):
+        # PNG grey is at most 16 bits, whichever I mode Pillow opens it as.
+        return image.convert("I").point(lambda v: v * (255 / 65535)).convert("L")
+    return image.convert("RGB")
+
+
 def _asset_drawing(asset: Optional[bytes]):
     """Vector path: parse an SVG asset into a reportlab drawing."""
-    if asset is None or not asset.lstrip().startswith((b"<svg", b"<?xml")):
+    if asset is None or not asset.lstrip().startswith(_SVG_MAGICS):
         return None
     try:
         return svg2rlg(io.BytesIO(asset))

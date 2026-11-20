@@ -67,6 +67,7 @@ The returned label honours the request's `label_type`: `PDF` (the default) recei
 The label is rendered once as a single-root, well-formed SVG: a `<style>` element carrying an `@page` rule for 100 mm × 180 mm sits inside the svg root.
 Standalone `.svg` consumers therefore get a valid document, and HTML print wrappers pick up the page sizing from the embedded style.
 For the default PDF output the SVG converts through svglib/reportlab — pure Python, so no system cairo or fonts are involved — with the franking asset re-drawn into its slot as native vector (SVG asset) or raster (PNG asset) geometry, because svglib cannot load data-URI images; the slot rect and aspect rule come from the template itself, so the template stays the single source of the label geometry.
+A PNG asset is drawn as an inline image, which carries no alpha channel, so transparent pixels are flattened onto white and 16-bit grey is scaled to 8 bits; a PNG that does not decode fails the conversion rather than leaving the slot empty.
 All label text is fixed Swedish (Avsändare, Kundnummer, Vikt, Datum), and the weight prints in grams whatever unit the request declared.
 The franking asset is inlined as a base64 data URI in the SVG form, so that document is self-contained and prints offline, and the kundnummer prints under the franking mark.
 A shipper contact line prints under the sender block when the shipper has contact data (see below).
