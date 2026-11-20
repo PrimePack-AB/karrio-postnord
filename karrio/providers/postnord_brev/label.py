@@ -178,6 +178,25 @@ def png_image(asset: bytes) -> Image.Image:
     return image.convert("RGB")
 
 
+def check_franking_asset(asset: bytes) -> None:
+    """Raise ValueError unless the PDF conversion can draw this asset.
+
+    Accepts exactly what the label renders: a PNG that ``png_image``
+    decodes, or an SVG (starting ``<svg`` or ``<?xml``, as the purchase
+    guard sniffs it) that svglib parses into a drawing of positive size.
+    Lets a consumer refuse an asset when it is configured instead of at
+    booking.
+    """
+    if asset.startswith(_PNG_MAGIC):
+        png_image(asset)
+        return
+    if not asset.startswith(_SVG_MAGICS):
+        raise ValueError("the asset is neither a PNG nor an SVG")
+    drawing = _asset_drawing(asset)
+    if drawing is None or not (drawing.width > 0 and drawing.height > 0):
+        raise ValueError("the SVG asset does not parse into a drawable image")
+
+
 def _asset_drawing(asset: Optional[bytes]):
     """Vector path: parse an SVG asset into a reportlab drawing."""
     if asset is None or not asset.lstrip().startswith(_SVG_MAGICS):

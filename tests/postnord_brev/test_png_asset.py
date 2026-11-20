@@ -12,8 +12,12 @@ import pypdf
 import karrio.core.models as models
 import karrio.sdk as karrio
 
-from karrio.providers.postnord_brev.label import render_label, svg_to_pdf
-from .fixture import gateway_with_asset, synthetic_png
+from karrio.providers.postnord_brev.label import (
+    check_franking_asset,
+    render_label,
+    svg_to_pdf,
+)
+from .fixture import SyntheticFrankingSvg, gateway_with_asset, synthetic_png
 from .test_label_render import ShipmentPayload
 
 
@@ -66,6 +70,25 @@ class TestPngAssetLabelRender(unittest.TestCase):
         truncated = base64.b64decode(synthetic_png("L", (69, 39)))[:40]
         with self.assertRaises(ValueError):
             _label_pdf(base64.b64encode(truncated).decode())
+
+
+class TestCheckFrankingAsset(unittest.TestCase):
+    def test_accepts_drawable_png_and_svg(self):
+        check_franking_asset(base64.b64decode(synthetic_png("RGBA", (8, 6))))
+        check_franking_asset(SyntheticFrankingSvg.encode())
+
+    def test_refuses_what_the_label_cannot_draw(self):
+        png = base64.b64decode(synthetic_png("L", (69, 39)))
+        for name, asset in [
+            ("truncated png", png[:40]),
+            ("png magic then garbage", b"\x89PNG\r\n\x1a\nfakepng"),
+            ("not an image", b"not an image"),
+            ("jpeg", b"\xff\xd8\xff\xe0" + b"\x00" * 16),
+            ("malformed svg", b"<svg xmlns='http://www.w3.org/2000/svg'><rect"),
+            ("zero-size svg", b"<svg xmlns='http://www.w3.org/2000/svg' width='0' height='0'/>"),
+        ]:
+            with self.subTest(name), self.assertRaises(ValueError):
+                check_franking_asset(asset)
 
 
 class TestPngAssetShipment(unittest.TestCase):

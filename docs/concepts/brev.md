@@ -54,6 +54,7 @@ PostNord publishes the kliché as EPS and PDF while the connector accepts SVG or
 4. Paste the result into the Franking Asset field — a bare base64 string or a full `data:image/svg+xml;base64,…` / `data:image/png;base64,…` URI both work.
 
 A submitted value that decodes to neither SVG nor PNG — the raw EPS or PDF, for example — fails at purchase with a field error naming the accepted formats and the download page.
+Consumers that store the asset ahead of booking can refuse it when it is configured: `karrio.providers.postnord_brev.label.check_franking_asset(decoded_bytes)` raises `ValueError` unless the PDF conversion can draw it (a PNG Pillow decodes, or an SVG svglib parses into a drawing of positive size).
 
 ## Rating and purchase
 
