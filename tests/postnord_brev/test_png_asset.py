@@ -90,6 +90,18 @@ class TestCheckFrankingAsset(unittest.TestCase):
             with self.subTest(name), self.assertRaises(ValueError):
                 check_franking_asset(asset)
 
+    def test_refuses_a_decompression_bomb(self):
+        # 20000 x 20000 one-bit pixels compress to a few kilobytes but exceed
+        # Pillow's decompression bomb limit, which raises its own error type.
+        import io
+
+        from PIL import Image
+
+        buffer = io.BytesIO()
+        Image.new("1", (20000, 20000)).save(buffer, "PNG")
+        with self.assertRaises(ValueError):
+            check_franking_asset(buffer.getvalue())
+
 
 class TestPngAssetShipment(unittest.TestCase):
     def test_png_asset_books_a_pdf_label(self):

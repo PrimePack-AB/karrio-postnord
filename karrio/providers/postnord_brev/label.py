@@ -163,7 +163,12 @@ def png_image(asset: bytes) -> Image.Image:
     try:
         image = Image.open(io.BytesIO(asset))
         image.load()
-    except (UnidentifiedImageError, OSError, SyntaxError) as error:
+    except (
+        UnidentifiedImageError,
+        Image.DecompressionBombError,
+        OSError,
+        SyntaxError,
+    ) as error:
         raise ValueError(f"the PNG asset does not decode: {error}") from error
     if image.mode in ("1", "L", "RGB"):
         return image
