@@ -71,7 +71,7 @@ For the default PDF output the SVG converts through svglib/reportlab — pure Py
 A PNG asset is drawn as an inline image, which carries no alpha channel, so transparent pixels are flattened onto white and 16-bit grey is scaled to 8 bits; a PNG that does not decode fails the conversion rather than leaving the slot empty.
 All label text is fixed Swedish (Avsändare, Kundnummer, Vikt, Datum), and the weight prints in grams whatever unit the request declared.
 The franking asset is inlined as a base64 data URI in the SVG form, so that document is self-contained and prints offline, and the kundnummer prints under the franking mark.
-A shipper contact line prints under the sender block when the shipper has contact data (see below).
+A shipper contact line prints under the sender block when the shipper has an e-mail or phone number (see below).
 
 One platform caveat: karrio servers store `label_type` through a fixed PDF/ZPL/PNG choice set, so an `SVG` label requested through a server deployment is persisted as PDF bytes mismatch — request the default PDF there; explicit SVG labels are for direct SDK consumers, whose persistence has no such gate.
 
@@ -97,10 +97,9 @@ Resolution takes the shipment metadata `postnord_port_paye_customer_number`, els
 
 ## Shipper contact
 
-The shipper's e-mail prints whenever present.
-The phone number prints per `postnord_phone_number_policy`, the same option name as the postnord carrier's, set on the connection config and overridable per shipment in `options`: the default `always` prints it, and `omit_when_email_suffices` drops it exactly when an e-mail is present, keeping phone numbers off the label.
-Phone digits are normalized by stripping spaces and dashes.
-The brev policy knows those two values; anything else — including the postnord carrier's `omit_unless_required` — resolves fail-safe to `always`.
+The shipper's e-mail prints whenever present, and its phone number prints only when it has no e-mail (phone digits normalized by stripping spaces and dashes); the recipient's e-mail and phone number never print.
+This follows the product-owner ruling of 2026-11-20 and holds whatever `postnord_phone_number_policy` says: brev connections still accept that option for parity with the postnord carrier, but no brev request is sent anywhere, so it has no effect on this carrier.
+The line is fitted to the sender column so it always ends before the Kundnummer column: it shrinks from 2.24 mm down to 1.8 mm, measured in Helvetica (the face the PDF is drawn in), and a contact still too long at 1.8 mm is cut with an ellipsis.
 At least one contact is not mandatory: the terms require only a complete sender designation, and this carrier follows that ruling.
 
 ## Engine line and tagline
