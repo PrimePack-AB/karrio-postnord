@@ -199,39 +199,76 @@ class TestBrevGuards(unittest.TestCase):
         self.assertIn("data:image/svg+xml;base64," + SyntheticFrankingAsset, svg)
 
 
-class TestBrevShipperContact(unittest.TestCase):
-    def _svg(self, payload, gw=gateway):
-        response = _create({**payload, "label_type": "SVG"}, gw)
-        return base64.b64decode(response.shipment.docs.label).decode()
+class TestBrevContactPrinting(unittest.TestCase):
+    """Ruling 2026-11-20: the recipient's e-mail and phone never print; the
+    shipper's contact line prints the e-mail, and the phone only without an
+    e-mail, whatever postnord_phone_number_policy says."""
 
-    def _contact_payload(self, **options):
+    def _labels(self, payload, gw=gateway):
+        svg_response = _create({**payload, "label_type": "SVG"}, gw)
+        pdf_response = _create({**payload, "label_type": "PDF"}, gw)
+        svg = base64.b64decode(svg_response.shipment.docs.label).decode()
+        pdf = base64.b64decode(pdf_response.shipment.docs.label)
+        text = pypdf.PdfReader(io.BytesIO(pdf)).pages[0].extract_text()
+        return svg, text
+
+    def _payload(self, shipper=None, recipient=None, **options):
         return {
             **ShipmentPayload,
-            "shipper": {
-                **ShipmentPayload["shipper"],
-                "email": "avsandare@example.se",
-                "phone_number": "+46 70 123 45 67",
-            },
+            "shipper": {**ShipmentPayload["shipper"], **(shipper or {})},
+            "recipient": {**ShipmentPayload["recipient"], **(recipient or {})},
             "options": options,
         }
 
-    def test_email_suffices_omits_phone(self):
-        svg = self._svg(
-            self._contact_payload(postnord_phone_number_policy="omit_when_email_suffices")
-        )
-        self.assertIn("avsandare@example.se", svg)
-        self.assertNotIn("46701234567", svg)
+    def assertInBoth(self, needle, labels):
+        for label in labels:
+            self.assertIn(needle, label)
 
-    def test_always_policy_prints_phone_beside_email(self):
-        svg = self._svg(self._contact_payload(postnord_phone_number_policy="always"))
-        self.assertIn("avsandare@example.se · +46701234567", svg)
+    def assertInNeither(self, needle, labels):
+        for label in labels:
+            self.assertNotIn(needle, label)
 
-    def test_request_option_overrides_connection_config(self):
-        payload = self._contact_payload(postnord_phone_number_policy="always")
-        svg = self._svg(
-            payload, gateway_with_phone_policy("omit_when_email_suffices")
+    def test_recipient_email_and_phone_never_print(self):
+        labels = self._labels(
+            self._payload(
+                recipient={"email": "kund@example.se", "phone_number": "+46 73 999 88 77"}
+            )
         )
-        self.assertIn("46701234567", svg)
+        self.assertInNeither("kund@example.se", labels)
+        self.assertInNeither("73 999 88 77", labels)
+        self.assertInNeither("46739998877", labels)
+        self.assertInBoth("Jane Doe", labels)
+
+    def test_shipper_with_email_and_phone_prints_only_email(self):
+        shipper = {"email": "avsandare@example.se", "phone_number": "+46 70 123 45 67"}
+        for gw, options in (
+            (gateway, {}),
+            (gateway, {"postnord_phone_number_policy": "always"}),
+            (gateway_with_phone_policy("always"), {}),
+            (gateway, {"postnord_phone_number_policy": "omit_when_email_suffices"}),
+        ):
+            with self.subTest(options=options):
+                labels = self._labels(self._payload(shipper, **options), gw)
+                self.assertInBoth("avsandare@example.se", labels)
+                self.assertInNeither("46701234567", labels)
+                self.assertInNeither("70 123 45 67", labels)
+
+    def test_shipper_with_phone_only_prints_phone(self):
+        for options in ({}, {"postnord_phone_number_policy": "omit_when_email_suffices"}):
+            with self.subTest(options=options):
+                labels = self._labels(
+                    self._payload({"phone_number": "+46 70 123 45 67"}, **options)
+                )
+                self.assertInBoth("+46701234567", labels)
+
+    def test_shipper_with_neither_prints_no_contact_line(self):
+        svg, text = self._labels(
+            self._payload(
+                recipient={"email": "kund@example.se", "phone_number": "+46 73 999 88 77"}
+            )
+        )
+        self.assertNotIn("shipper-contact", svg)
+        self.assertNotIn("@", text)
 
 
 class TestBrevLabelOptions(unittest.TestCase):

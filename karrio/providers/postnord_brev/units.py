@@ -16,9 +16,10 @@ class ShippingOption(lib.Enum):
 
 
 class PhoneNumberPolicy(lib.StrEnum):
-    """Shipper-contact policy on the label, mirroring the postnord carrier's
-    postnord_phone_number_policy semantics; unknown values fail safe to
-    ``always``."""
+    """The postnord carrier's postnord_phone_number_policy values, accepted
+    on brev connections for parity; brev sends no booking, and the label
+    prints the shipper's e-mail, or the phone only without one, whatever
+    the policy (ruling 2026-11-20)."""
 
     always = "always"
     omit_when_email_suffices = "omit_when_email_suffices"
@@ -30,16 +31,6 @@ class ConnectionConfig(lib.Enum):
     )
     postnord_brev_label_tagline = lib.OptionEnum("postnord_brev_label_tagline")
     postnord_brev_stamp_pattern = lib.OptionEnum("postnord_brev_stamp_pattern")
-
-
-def resolve_phone_number_policy(payload, settings) -> str:
-    """Shipper-contact policy: the shipment option wins over the connection
-    config; unknown values fail safe to ``always``."""
-    option = (payload.options or {}).get("postnord_phone_number_policy")
-    config = settings.connection_config.postnord_phone_number_policy.state
-    raw = option or config or "always"
-    value = str(getattr(raw, "value", raw))
-    return value if value in ("always", "omit_when_email_suffices") else "always"
 
 
 def _resolved_option(payload, settings, code: str) -> typing.Optional[str]:

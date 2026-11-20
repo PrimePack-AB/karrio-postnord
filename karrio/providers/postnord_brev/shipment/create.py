@@ -25,7 +25,6 @@ import karrio.core.models as models
 from karrio.providers.postnord_brev.label import render_label, svg_to_pdf
 from karrio.providers.postnord_brev.units import (
     resolve_label_tagline,
-    resolve_phone_number_policy,
     resolve_stamp_pattern,
 )
 
@@ -77,7 +76,7 @@ def create_shipment(request, settings):
         customer_number,
         int(round(_weight_grams(parcel))),
         asset_href,
-        shipper_contact=_shipper_contact(payload, settings),
+        shipper_contact=_shipper_contact(payload),
         engine_line=_engine_line(payload, settings),
         tagline=_tagline(payload, settings),
     )
@@ -115,18 +114,17 @@ def _weight_grams(parcel) -> float:
     return float(parcel.weight or 0) * factor
 
 
-def _shipper_contact(payload, settings):
-    """Sender contact line: email always; phone per the policy, mirroring the
-    postnord carrier's postnord_phone_number_policy semantics."""
+def _shipper_contact(payload):
+    """Sender contact line: the e-mail, else the phone number, else none.
+
+    Ruling 2026-11-20: a phone prints only when the shipper has no e-mail,
+    whatever postnord_phone_number_policy says, and the recipient's contact
+    data never prints (the template has no slot for it).
+    """
     shipper = payload.shipper
-    policy = resolve_phone_number_policy(payload, settings)
-    parts = []
     if shipper.email:
-        parts.append(shipper.email)
-    phone = re.sub(r"[\s-]", "", shipper.phone_number or "")
-    if phone and (policy == "always" or not shipper.email):
-        parts.append(phone)
-    return " · ".join(parts) or None
+        return shipper.email
+    return re.sub(r"[\s-]", "", shipper.phone_number or "") or None
 
 
 def _engine_line(payload, settings):
