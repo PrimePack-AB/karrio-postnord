@@ -15,7 +15,7 @@ from .fixture import (
     SyntheticFrankingAsset,
     _settings,
     gateway,
-    gateway_with_phone_policy,
+    gateway_with_config,
     gateway_without,
 )
 from .test_label_render import ShipmentPayload
@@ -202,7 +202,8 @@ class TestBrevGuards(unittest.TestCase):
 class TestBrevContactPrinting(unittest.TestCase):
     """Ruling 2026-11-20: the recipient's e-mail and phone never print; the
     shipper's contact line prints the e-mail, and the phone only without an
-    e-mail, whatever postnord_phone_number_policy says."""
+    e-mail. A postnord_phone_number_policy left on a connection or shipment
+    from before its removal is ignored, never an error."""
 
     def _labels(self, payload, gw=gateway):
         svg_response = _create({**payload, "label_type": "SVG"}, gw)
@@ -244,7 +245,7 @@ class TestBrevContactPrinting(unittest.TestCase):
         for gw, options in (
             (gateway, {}),
             (gateway, {"postnord_phone_number_policy": "always"}),
-            (gateway_with_phone_policy("always"), {}),
+            (gateway_with_config(postnord_phone_number_policy="always"), {}),
             (gateway, {"postnord_phone_number_policy": "omit_when_email_suffices"}),
         ):
             with self.subTest(options=options):
@@ -254,12 +255,21 @@ class TestBrevContactPrinting(unittest.TestCase):
                 self.assertInNeither("70 123 45 67", labels)
 
     def test_shipper_with_phone_only_prints_phone(self):
-        for options in ({}, {"postnord_phone_number_policy": "omit_when_email_suffices"}):
+        legacy = gateway_with_config(postnord_phone_number_policy="omit_when_email_suffices")
+        for gw, options in (
+            (gateway, {}),
+            (gateway, {"postnord_phone_number_policy": "omit_when_email_suffices"}),
+            (legacy, {}),
+        ):
             with self.subTest(options=options):
                 labels = self._labels(
-                    self._payload({"phone_number": "+46 70 123 45 67"}, **options)
+                    self._payload({"phone_number": "+46 70 123 45 67"}, **options), gw
                 )
                 self.assertInBoth("+46701234567", labels)
+
+    def test_legacy_phone_policy_is_not_a_connection_config(self):
+        legacy = gateway_with_config(postnord_phone_number_policy="always")
+        self.assertNotIn("postnord_phone_number_policy", legacy.settings.connection_config)
 
     def test_shipper_with_neither_prints_no_contact_line(self):
         svg, text = self._labels(

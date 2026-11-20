@@ -15,20 +15,7 @@ class ShippingOption(lib.Enum):
     pass
 
 
-class PhoneNumberPolicy(lib.StrEnum):
-    """The postnord carrier's postnord_phone_number_policy values, accepted
-    on brev connections for parity; brev sends no booking, and the label
-    prints the shipper's e-mail, or the phone only without one, whatever
-    the policy (ruling 2026-11-20)."""
-
-    always = "always"
-    omit_when_email_suffices = "omit_when_email_suffices"
-
-
 class ConnectionConfig(lib.Enum):
-    postnord_phone_number_policy = lib.OptionEnum(
-        "postnord_phone_number_policy", PhoneNumberPolicy
-    )
     postnord_brev_label_tagline = lib.OptionEnum("postnord_brev_label_tagline")
     postnord_brev_stamp_pattern = lib.OptionEnum("postnord_brev_stamp_pattern")
 

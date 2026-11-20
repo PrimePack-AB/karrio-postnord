@@ -31,11 +31,9 @@ def gateway_without(**drop):
     )
 
 
-def gateway_with_phone_policy(policy):
-    """Gateway whose connection config sets postnord_phone_number_policy."""
-    return karrio.gateway["postnord_brev"].create(
-        dict(_settings, config=dict(postnord_phone_number_policy=policy))
-    )
+def gateway_with_config(**config):
+    """Gateway whose connection config carries the given keys, declared or not."""
+    return karrio.gateway["postnord_brev"].create(dict(_settings, config=config))
 
 
 def synthetic_png(mode="L", size=(69, 39), color=0):

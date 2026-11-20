@@ -39,18 +39,15 @@ class TestPostNordBrevRegistration(unittest.TestCase):
     def test_connection_configs_are_published(self):
         # The dashboard's carrier-connection config tab renders only what the
         # plugin metadata declares; without connection_configs the tab is
-        # absent and no option (phone policy, tagline, stamp pattern) is
-        # settable on the connection.
+        # absent and no option (tagline, stamp pattern) is settable on the
+        # connection. postnord_phone_number_policy is not published: the brev
+        # label's contact line ignores any policy (ruling 2026-11-20).
         metadata = karrio.gateway.providers["postnord_brev"]
         self.assertIsNotNone(metadata.connection_configs)
         published = {member.name for member in metadata.connection_configs}
         self.assertEqual(
             published,
-            {
-                "postnord_phone_number_policy",
-                "postnord_brev_label_tagline",
-                "postnord_brev_stamp_pattern",
-            },
+            {"postnord_brev_label_tagline", "postnord_brev_stamp_pattern"},
         )
 
     def test_se_lane_offers_the_single_service_without_http(self):

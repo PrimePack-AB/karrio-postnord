@@ -118,8 +118,8 @@ def _shipper_contact(payload):
     """Sender contact line: the e-mail, else the phone number, else none.
 
     Ruling 2026-11-20: a phone prints only when the shipper has no e-mail,
-    whatever postnord_phone_number_policy says, and the recipient's contact
-    data never prints (the template has no slot for it).
+    and the recipient's contact data never prints (the template has no slot
+    for it).
     """
     shipper = payload.shipper
     if shipper.email:
